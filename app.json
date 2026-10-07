@@ -1,0 +1,53 @@
+{
+  "expo": {
+    "name": "HRTRAC",
+    "slug": "hrtrac-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "icon": "./assets/icon.png",
+    "scheme": "hrtrac",
+    "android": {
+      "package": "com.hrtrac.mobile",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION",
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "ios": {
+      "bundleIdentifier": "com.hrtrac.mobile",
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "HRTRAC uses the camera for attendance punch-in photos.",
+        "NSLocationWhenInUseUsageDescription": "HRTRAC uses your location for attendance punch-in and punch-out.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "HRTRAC records your location periodically every 2 hours while you are punched in, even when the app is in the background.",
+        "UIBackgroundModes": [
+          "location",
+          "fetch"
+        ]
+      }
+    },
+    "plugins": [
+      "expo-image-picker",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow HRTRAC to use your location for attendance verification and periodic tracking while you are punched in.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
+      "@react-native-community/datetimepicker"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "4ca7043a-4656-417c-a95a-8b76ed36ab77"
+      }
+    }
+  }
+}
