@@ -1,4 +1,5 @@
 import React from 'react';
+import { themedCreate } from '../theme/themedStyles';
 import {ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View} from 'react-native';
 import {theme} from '../theme/theme';
 
@@ -8,7 +9,7 @@ export function Button({children,onPress,disabled,secondary=false}) { return <Pr
 export function Field({label,...props}) { return <View style={{marginBottom:13}}><Text style={s.label}>{label}</Text><TextInput placeholderTextColor="#9AA3B2" style={s.input} {...props}/></View>; }
 export function Loading(){return <View style={{padding:30,alignItems:'center'}}><ActivityIndicator size="large" color={theme.colors.primary}/></View>}
 export const styles=s;
-const s=StyleSheet.create({
+const s=themedCreate({
  title:{fontSize:27,fontWeight:'800',color:theme.colors.text},sub:{color:theme.colors.muted,marginTop:4,fontSize:14},
  card:{backgroundColor:'#fff',borderRadius:theme.radius.md,padding:16,marginBottom:14,borderWidth:1,borderColor:theme.colors.border},
  label:{fontSize:13,fontWeight:'700',color:theme.colors.text,marginBottom:6},input:{height:50,borderWidth:1,borderColor:theme.colors.border,borderRadius:11,paddingHorizontal:14,color:theme.colors.text,backgroundColor:'#fff'},

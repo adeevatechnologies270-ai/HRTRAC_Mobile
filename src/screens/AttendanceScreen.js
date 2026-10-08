@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { themedCreate } from '../theme/themedStyles';
 import {
   ActivityIndicator,
   Alert,
@@ -205,6 +206,7 @@ const AttendanceScreen = ({ navigation }) => {
 
   // Detail / menu / map / adjustment
   const [selectedDay, setSelectedDay] = useState(null); // { date, info }
+  const [fullScreenPhoto, setFullScreenPhoto] = useState(null);
   const [expandedTrackIndex, setExpandedTrackIndex] = useState(null);
   const [menuDay, setMenuDay] = useState(null); // { date, info }
   const [mapPoint, setMapPoint] = useState(null); // { title, latitude, longitude }
@@ -1016,7 +1018,7 @@ const AttendanceScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = themedCreate({
   content: { padding: 16, paddingBottom: 35 },
   loader: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.background },
   loaderText: { fontSize: 10, color: COLORS.textSecondary, marginTop: 9 },

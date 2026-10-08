@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { themedCreate, tc } from '../theme/themedStyles';
 import {
   ActivityIndicator,
   Animated,
@@ -57,6 +58,10 @@ const COLORS = {
   green: '#16A05D', greenSoft: '#E8F8F0', orange: '#E98A24', orangeSoft: '#FFF4E7', purple: '#7551D8',
   purpleSoft: '#F1EDFF', cyan: '#1687B7', cyanSoft: '#E8F7FC', red: '#EF4444', border: '#E6ECF4', shadow: '#0B2447',
 };
+
+// Inline (non-StyleSheet) colors ko current theme ke hisaab se badalta hai.
+// tb = background color, tc = text / icon color.
+const tb = c => tc(c, 'bg');
 
 // Same rules as the web dashboard, so mobile and web behave identically.
 const ALLOWED_RADIUS_METERS = 20;
@@ -284,43 +289,49 @@ const DashboardScreen = ({ navigation }) => {
   const geoStampRef = useRef(null);
 
   // silent = true: background refresh without replacing the screen with the loader.
-const loadDashboard = useCallback(async (silent = false) => {
-  if (!user?.id) { setLoading(false); return; }
-  try {
-    if (!silent) setLoading(true);
-    const results = await Promise.allSettled([
-      client.get(endpoints.punchesByUser(user.id)),
-      client.get(endpoints.regularization),
-      client.get(endpoints.expenses),          // string hai, function nahi
-      client.get(endpoints.holidays),
-      client.get(endpoints.users),
-      client.get(endpoints.allJobDetails),
-    ]);
+  const loadDashboard = useCallback(async (silent = false) => {
+    if (!user?.id) { setLoading(false); return; }
+    try {
+      if (!silent) setLoading(true);
+      // endpoints.expenses string ho ya function(userId), dono chalega.
+      const expensesUrl = typeof endpoints.expenses === 'function' ? endpoints.expenses(user.id) : endpoints.expenses;
+      const results = await Promise.allSettled([
+        client.get(endpoints.punchesByUser(user.id)),
+        client.get(endpoints.regularization),
+        client.get(expensesUrl),
+        client.get(endpoints.holidays),
+        client.get(endpoints.users),
+        client.get(endpoints.allJobDetails),
+      ]);
 
-    const names = ['Punches', 'Regularization', 'Expenses', 'Holidays', 'Users', 'JobDetails'];
-    results.forEach((r, i) => {
-      if (r.status === 'rejected') console.log(`${names[i]} API error:`, r.reason?.response?.status, r.reason?.response?.data || r.reason?.message);
-    });
+      const names = ['Punches', 'Regularization', 'Expenses', 'Holidays', 'Users', 'JobDetails'];
+      results.forEach((r, i) => {
+        if (r.status === 'rejected') console.log(`${names[i]} API error:`, r.reason?.response?.status, r.reason?.response?.data || r.reason?.message);
+      });
 
-    // Fail hui API ka purana data rakho, khali mat karo
-    const pick = i => (results[i].status === 'fulfilled' ? toList(results[i].value) : null);
-    const punches = pick(0), regs = pick(1), exps = pick(2), hols = pick(3), usrs = pick(4), jobs = pick(5);
+      // Fail hui API ka purana data rakho, khali mat karo
+      const pick = i => (results[i].status === 'fulfilled' ? toList(results[i].value) : null);
+      const punches = pick(0), regs = pick(1), exps = pick(2), hols = pick(3), usrs = pick(4), jobs = pick(5);
 
-    setDashboard(prev => ({
-      attendance: punches ?? prev.attendance,
-      leaves: regs
-        ? regs.filter(l => Number(l.user) === Number(user.id) && (!l.request_type || l.request_type === 'Leave'))
-        : prev.leaves,
-      expenses: exps
-        ? exps.filter(e => e.user == null || Number(e.user) === Number(user.id))
-        : prev.expenses,
-      holidays: hols ?? prev.holidays,
-    }));
-    setPeople(prev => ({ users: usrs ?? prev.users, jobs: jobs ?? prev.jobs }));
-  } finally {
-    setLoading(false);
-  }
-}, [user?.id]);
+      setDashboard(prev => ({
+        attendance: punches ?? prev.attendance,
+        leaves: regs
+          ? regs.filter(l => Number(l.user) === Number(user.id) && (!l.request_type || l.request_type === 'Leave'))
+          : prev.leaves,
+        expenses: exps
+          ? exps.filter(e => {
+              const owner = typeof e.user === 'object' ? e.user?.id : e.user;
+              return owner == null || Number(owner) === Number(user.id);
+            })
+          : prev.expenses,
+        holidays: hols ?? prev.holidays,
+      }));
+      setPeople(prev => ({ users: usrs ?? prev.users, jobs: jobs ?? prev.jobs }));
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.id]);
+
   // Needed for the office-radius check and the "start from joining date" rule.
   const loadJobDetail = useCallback(async () => {
     if (!user?.id) return;
@@ -572,9 +583,9 @@ const loadDashboard = useCallback(async (silent = false) => {
   if (loading) {
     return (
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-        <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
+        <StatusBar barStyle="light-content" backgroundColor={tb(COLORS.primary)} />
         <View style={styles.loader}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
+          <ActivityIndicator size="large" color={tc(COLORS.primary)} />
           <Text style={styles.loaderText}>Loading dashboard...</Text>
         </View>
       </SafeAreaView>
@@ -583,12 +594,18 @@ const loadDashboard = useCallback(async (silent = false) => {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} translucent={false} />
+      <StatusBar barStyle="light-content" backgroundColor={tb(COLORS.primary)} translucent={false} />
       <View style={styles.container}>
         <Animated.View style={[styles.heroHeader, fadeSlide(headerAnim)]}>
           <View style={styles.heroRow}>
             <TouchableOpacity style={styles.profileWrap} activeOpacity={0.8} onPress={() => setDrawerVisible(true)}>
-              <View style={styles.avatar}><Text style={styles.avatarText}>{String(displayName).charAt(0).toUpperCase()}</Text></View>
+              <View style={styles.avatar}>
+                {user?.profile_img ? (
+                  <Image source={{ uri: user.profile_img }} style={styles.avatarImage} />
+                ) : (
+                  <Text style={styles.avatarText}>{String(displayName).charAt(0).toUpperCase()}</Text>
+                )}
+              </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.greeting}>Good day</Text>
                 <Text style={styles.userName} numberOfLines={1}>{displayName}</Text>
@@ -611,7 +628,7 @@ const loadDashboard = useCallback(async (silent = false) => {
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={tc(COLORS.primary)} />}
         >
           <Animated.View style={fadeSlide(punchCardAnim)}>
             <View style={styles.punchCard}>
@@ -657,7 +674,7 @@ const loadDashboard = useCallback(async (silent = false) => {
                       onPress={() => openPunchModal('in')}
                     >
                       <View style={styles.punchButtonIcon}>
-                        {checkingRange ? <ActivityIndicator size="small" color={COLORS.primary} /> : <LogIn size={18} color={hasActivePunch ? COLORS.textLight : COLORS.primary} />}
+                        {checkingRange ? <ActivityIndicator size="small" color={tc(COLORS.primary)} /> : <LogIn size={18} color={hasActivePunch ? tc(COLORS.textLight) : tc(COLORS.primary)} />}
                       </View>
                       <View style={styles.punchButtonContent}>
                         <Text style={[styles.punchButtonTitle, hasActivePunch && styles.disabledPunchText]}>Punch In</Text>
@@ -675,7 +692,7 @@ const loadDashboard = useCallback(async (silent = false) => {
                       onPress={() => openPunchModal('out')}
                     >
                       <View style={[styles.punchButtonIcon, { backgroundColor: 'rgba(255,255,255,0.14)' }]}>
-                        <LogOut size={18} color={!hasActivePunch ? COLORS.textLight : COLORS.white} />
+                        <LogOut size={18} color={!hasActivePunch ? tc(COLORS.textLight) : COLORS.white} />
                       </View>
                       <View style={styles.punchButtonContent}>
                         <Text style={[styles.punchButtonTitle, { color: COLORS.white }, !hasActivePunch && styles.disabledPunchText]}>Punch Out</Text>
@@ -696,11 +713,11 @@ const loadDashboard = useCallback(async (silent = false) => {
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 {isOnTimeToday !== null && (
-                  <View style={[styles.punctualityBadge, { backgroundColor: isOnTimeToday ? COLORS.greenSoft : COLORS.orangeSoft }]}>
+                  <View style={[styles.punctualityBadge, { backgroundColor: tb(isOnTimeToday ? COLORS.greenSoft : COLORS.orangeSoft) }]}>
                     <Text style={[styles.punctualityText, { color: isOnTimeToday ? COLORS.green : COLORS.orange }]}>{isOnTimeToday ? 'On Time' : 'Late'}</Text>
                   </View>
                 )}
-                <View style={[styles.statusBadge, { backgroundColor: attendanceStatus.background }]}>
+                <View style={[styles.statusBadge, { backgroundColor: tb(attendanceStatus.background) }]}>
                   <View style={[styles.statusDot, { backgroundColor: attendanceStatus.color }]} />
                   <Text style={[styles.statusText, { color: attendanceStatus.color }]}>{attendanceStatus.label}</Text>
                 </View>
@@ -708,17 +725,17 @@ const loadDashboard = useCallback(async (silent = false) => {
             </View>
             <View style={styles.attendanceGrid}>
               <View style={styles.attendanceBox}>
-                <View style={[styles.smallIcon, { backgroundColor: COLORS.primarySoft }]}><LogIn size={16} color={COLORS.primary} /></View>
+                <View style={[styles.smallIcon, { backgroundColor: tb(COLORS.primarySoft) }]}><LogIn size={16} color={tc(COLORS.primary)} /></View>
                 <Text style={styles.boxLabel}>Check In</Text>
                 <Text style={styles.boxValue}>{formatTime(getCheckInValue(displayRecord))}</Text>
               </View>
               <View style={styles.attendanceBox}>
-                <View style={[styles.smallIcon, { backgroundColor: COLORS.greenSoft }]}><LogOut size={16} color={COLORS.green} /></View>
+                <View style={[styles.smallIcon, { backgroundColor: tb(COLORS.greenSoft) }]}><LogOut size={16} color={COLORS.green} /></View>
                 <Text style={styles.boxLabel}>Check Out</Text>
                 <Text style={styles.boxValue}>{formatTime(getCheckOutValue(displayRecord))}</Text>
               </View>
               <View style={styles.attendanceBox}>
-                <View style={[styles.smallIcon, { backgroundColor: COLORS.purpleSoft }]}><Clock3 size={16} color={COLORS.purple} /></View>
+                <View style={[styles.smallIcon, { backgroundColor: tb(COLORS.purpleSoft) }]}><Clock3 size={16} color={COLORS.purple} /></View>
                 <Text style={styles.boxLabel}>{hasActivePunch ? 'Elapsed' : 'Worked'}</Text>
                 <Text style={[styles.boxValue, { color: attendanceStatus.color }]}>{hasActivePunch ? formatTimer(liveElapsedMs) : formatHoursMinutes(totalWorkedMs)}</Text>
               </View>
@@ -728,7 +745,7 @@ const loadDashboard = useCallback(async (silent = false) => {
           <Animated.View style={[styles.sectionCard, fadeSlide(attendanceAnim)]}>
             <View style={styles.sectionHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <View style={[styles.smallIcon, { backgroundColor: COLORS.primarySoft, marginBottom: 0, marginRight: 9 }]}><BarChart3 size={16} color={COLORS.primary} /></View>
+                <View style={[styles.smallIcon, { backgroundColor: tb(COLORS.primarySoft), marginBottom: 0, marginRight: 9 }]}><BarChart3 size={16} color={tc(COLORS.primary)} /></View>
                 <View>
                   <Text style={styles.sectionTitle}>This Month</Text>
                   <Text style={styles.sectionSubtitle}>Attendance overview</Text>
@@ -737,11 +754,11 @@ const loadDashboard = useCallback(async (silent = false) => {
               <View style={styles.monthPill}><Text style={styles.monthPillText}>{monthlyOverview.workingDays} Working Days</Text></View>
             </View>
             <View style={styles.overviewGrid}>
-              <View style={[styles.overviewChip, { backgroundColor: COLORS.greenSoft }]}><Text style={[styles.overviewChipValue, { color: COLORS.green }]}>{monthlyOverview.present}</Text><Text style={styles.overviewChipLabel}>On Time</Text></View>
-              <View style={[styles.overviewChip, { backgroundColor: COLORS.purpleSoft }]}><Text style={[styles.overviewChipValue, { color: COLORS.purple }]}>{monthlyOverview.late}</Text><Text style={styles.overviewChipLabel}>Late</Text></View>
-              <View style={[styles.overviewChip, { backgroundColor: COLORS.orangeSoft }]}><Text style={[styles.overviewChipValue, { color: COLORS.orange }]}>{monthlyOverview.leave}</Text><Text style={styles.overviewChipLabel}>Leave</Text></View>
-              <View style={[styles.overviewChip, { backgroundColor: '#FDEDEE' }]}><Text style={[styles.overviewChipValue, { color: COLORS.red }]}>{monthlyOverview.absent}</Text><Text style={styles.overviewChipLabel}>Absent</Text></View>
-              <View style={[styles.overviewChip, { backgroundColor: '#F1F5F9' }]}><Text style={[styles.overviewChipValue, { color: COLORS.textSecondary }]}>{monthlyOverview.holiday}</Text><Text style={styles.overviewChipLabel}>Holiday</Text></View>
+              <View style={[styles.overviewChip, { backgroundColor: tb(COLORS.greenSoft) }]}><Text style={[styles.overviewChipValue, { color: COLORS.green }]}>{monthlyOverview.present}</Text><Text style={styles.overviewChipLabel}>On Time</Text></View>
+              <View style={[styles.overviewChip, { backgroundColor: tb(COLORS.purpleSoft) }]}><Text style={[styles.overviewChipValue, { color: COLORS.purple }]}>{monthlyOverview.late}</Text><Text style={styles.overviewChipLabel}>Late</Text></View>
+              <View style={[styles.overviewChip, { backgroundColor: tb(COLORS.orangeSoft) }]}><Text style={[styles.overviewChipValue, { color: COLORS.orange }]}>{monthlyOverview.leave}</Text><Text style={styles.overviewChipLabel}>Leave</Text></View>
+              <View style={[styles.overviewChip, { backgroundColor: tb('#FDEDEE') }]}><Text style={[styles.overviewChipValue, { color: COLORS.red }]}>{monthlyOverview.absent}</Text><Text style={styles.overviewChipLabel}>Absent</Text></View>
+              <View style={[styles.overviewChip, { backgroundColor: tb('#F1F5F9') }]}><Text style={[styles.overviewChipValue, { color: tc(COLORS.textSecondary) }]}>{monthlyOverview.holiday}</Text><Text style={styles.overviewChipLabel}>Holiday</Text></View>
             </View>
             <View style={styles.overviewBarTrack}>
               <View style={[styles.overviewBarSeg, { flex: Math.max(monthlyOverview.present, 0.0001), backgroundColor: COLORS.green }]} />
@@ -773,9 +790,9 @@ const loadDashboard = useCallback(async (silent = false) => {
                 return (
                   <Animated.View key={item.title} style={[styles.actionItem, { transform: [{ scale: actionScale[index] }] }]}>
                     <TouchableOpacity activeOpacity={0.85} style={styles.actionCard} onPress={() => navigation?.navigate?.(item.route)}>
-                      <View style={[styles.actionIcon, { backgroundColor: item.bg }]}><Icon size={19} color={item.color} /></View>
+                      <View style={[styles.actionIcon, { backgroundColor: tb(item.bg) }]}><Icon size={19} color={tc(item.color)} /></View>
                       <Text style={styles.actionTitle}>{item.title}</Text>
-                      <ChevronRight size={15} color={COLORS.textLight} />
+                      <ChevronRight size={15} color={tc(COLORS.textLight)} />
                     </TouchableOpacity>
                   </Animated.View>
                 );
@@ -794,9 +811,9 @@ const loadDashboard = useCallback(async (silent = false) => {
               </View>
             </View>
             <View style={styles.summaryRow}>
-              <SummaryCard icon={CalendarCheck2} title="Attendance" value={String(dashboard.attendance.length)} color={COLORS.primary} bg={COLORS.primarySoft} />
-              <SummaryCard icon={CalendarDays} title="Leaves" value={String(dashboard.leaves.length)} color={COLORS.green} bg={COLORS.greenSoft} />
-              <SummaryCard icon={WalletCards} title="Expenses" value={String(dashboard.expenses.length)} color={COLORS.orange} bg={COLORS.orangeSoft} />
+              <SummaryCard icon={CalendarCheck2} title="Attendance" value={String(dashboard.attendance.length)} color={tc(COLORS.primary)} bg={tb(COLORS.primarySoft)} />
+              <SummaryCard icon={CalendarDays} title="Leaves" value={String(dashboard.leaves.length)} color={COLORS.green} bg={tb(COLORS.greenSoft)} />
+              <SummaryCard icon={WalletCards} title="Expenses" value={String(dashboard.expenses.length)} color={COLORS.orange} bg={tb(COLORS.orangeSoft)} />
             </View>
           </Animated.View>
 
@@ -806,11 +823,11 @@ const loadDashboard = useCallback(async (silent = false) => {
                 <Text style={styles.sectionTitle}>Upcoming Leave</Text>
                 <Text style={styles.sectionSubtitle}>Latest leave information</Text>
               </View>
-              <TouchableOpacity onPress={() => navigation?.navigate?.('Leave')}><ArrowUpRight size={18} color={COLORS.primary} /></TouchableOpacity>
+              <TouchableOpacity onPress={() => navigation?.navigate?.('Leave')}><ArrowUpRight size={18} color={tc(COLORS.primary)} /></TouchableOpacity>
             </View>
             {upcomingLeave ? (
               <View style={styles.leaveRow}>
-                <View style={[styles.actionIcon, { backgroundColor: COLORS.greenSoft }]}><CalendarDays size={19} color={COLORS.green} /></View>
+                <View style={[styles.actionIcon, { backgroundColor: tb(COLORS.greenSoft) }]}><CalendarDays size={19} color={COLORS.green} /></View>
                 <View style={{ flex: 1, marginLeft: 10 }}>
                   <Text style={styles.leaveTitle}>{upcomingLeave.leave_type || upcomingLeave.type || 'Leave Request'}</Text>
                   <Text style={styles.leaveSub}>{upcomingLeave.date_from ? `${upcomingLeave.date_from} → ${upcomingLeave.date_to || upcomingLeave.date_from}` : 'Date not available'}</Text>
@@ -818,7 +835,7 @@ const loadDashboard = useCallback(async (silent = false) => {
                 <Text style={styles.leaveStatus}>{upcomingLeave.status || 'Pending'}</Text>
               </View>
             ) : (
-              <View style={styles.emptyState}><Coffee size={22} color={COLORS.textLight} /><Text style={styles.emptyText}>No upcoming leave found</Text></View>
+              <View style={styles.emptyState}><Coffee size={22} color={tc(COLORS.textLight)} /><Text style={styles.emptyText}>No upcoming leave found</Text></View>
             )}
           </Animated.View>
 
@@ -828,7 +845,7 @@ const loadDashboard = useCallback(async (silent = false) => {
               <Text style={styles.directoryTitle}>Employee Directory</Text>
               <Text style={styles.directorySub}>View employee information</Text>
             </View>
-            <ChevronRight size={20} color={COLORS.primary} />
+            <ChevronRight size={20} color={tc(COLORS.primary)} />
           </TouchableOpacity>
         </ScrollView>
 
@@ -845,7 +862,7 @@ const loadDashboard = useCallback(async (silent = false) => {
                   <Text style={styles.modalTitle}>{punchType === 'in' ? 'Punch In' : 'Punch Out'}</Text>
                   <Text style={styles.modalSubtitle}>{punchType === 'in' ? 'Capture your photo & verify location' : 'Verify your current location'}</Text>
                 </View>
-                <TouchableOpacity disabled={submittingPunch} style={styles.modalClose} onPress={closePunchModal}><X size={20} color={COLORS.text} /></TouchableOpacity>
+                <TouchableOpacity disabled={submittingPunch} style={styles.modalClose} onPress={closePunchModal}><X size={20} color={tc(COLORS.text)} /></TouchableOpacity>
               </View>
 
               <ScrollView showsVerticalScrollIndicator={false}>
@@ -859,16 +876,16 @@ const loadDashboard = useCallback(async (silent = false) => {
                         </TouchableOpacity>
                       ) : (
                         <View style={styles.cameraPlaceholder}>
-                          <View style={styles.cameraIconCircle}><Camera size={34} color={COLORS.primary} /></View>
+                          <View style={styles.cameraIconCircle}><Camera size={34} color={tc(COLORS.primary)} /></View>
                           <Text style={styles.cameraTitle}>Say Cheese</Text>
                           <Text style={styles.cameraSubtitle}>Capture your photo to continue</Text>
-                          {capturingPhoto && <ActivityIndicator size="small" color={COLORS.primary} style={{ marginTop: 15 }} />}
+                          {capturingPhoto && <ActivityIndicator size="small" color={tc(COLORS.primary)} style={{ marginTop: 15 }} />}
                         </View>
                       )}
                     </View>
                     {capturedPhoto && (
                       <TouchableOpacity disabled={capturingPhoto || submittingPunch} style={styles.retakeButton} onPress={retakePunchPhoto}>
-                        <RotateCcw size={16} color={COLORS.primary} /><Text style={styles.retakeText}>Retake Photo</Text>
+                        <RotateCcw size={16} color={tc(COLORS.primary)} /><Text style={styles.retakeText}>Retake Photo</Text>
                       </TouchableOpacity>
                     )}
                   </>
@@ -880,7 +897,7 @@ const loadDashboard = useCallback(async (silent = false) => {
                     <Text style={styles.modalLocationTitle}>Current Location</Text>
                     {locationLoading ? (
                       <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-                        <ActivityIndicator size="small" color={COLORS.primary} />
+                        <ActivityIndicator size="small" color={tc(COLORS.primary)} />
                         <Text style={[styles.modalLocationText, { marginLeft: 6 }]}>Detecting location...</Text>
                       </View>
                     ) : currentLocation ? (
@@ -902,7 +919,7 @@ const loadDashboard = useCallback(async (silent = false) => {
 
                 {punchType === 'out' && !currentLocation && !locationLoading && (
                   <TouchableOpacity style={styles.retakeButton} onPress={getCurrentLocation}>
-                    <RotateCcw size={16} color={COLORS.primary} /><Text style={styles.retakeText}>Retry Location</Text>
+                    <RotateCcw size={16} color={tc(COLORS.primary)} /><Text style={styles.retakeText}>Retry Location</Text>
                   </TouchableOpacity>
                 )}
 
@@ -938,6 +955,7 @@ const loadDashboard = useCallback(async (silent = false) => {
         onClose={() => setDrawerVisible(false)}
         displayName={displayName}
         email={user?.email || user?.user_email}
+        profileImg={user?.profile_img}
         items={DRAWER_ITEMS}
         activeRoute="Home"
         onNavigate={route => navigation?.navigate?.(route)}
@@ -959,8 +977,8 @@ const SummaryCard = ({ icon: Icon, title, value, color, bg }) => (
   </View>
 );
 
-const styles = StyleSheet.create({
-  safeArea:{flex:1,backgroundColor:COLORS.primary},container:{flex:1,backgroundColor:COLORS.background},heroHeader:{backgroundColor:COLORS.primary,paddingHorizontal:18,paddingTop:14,paddingBottom:22,borderBottomLeftRadius:32,borderBottomRightRadius:32,elevation:8,shadowColor:COLORS.primaryDark,shadowOpacity:.22,shadowRadius:15,shadowOffset:{width:0,height:7}},heroRow:{flexDirection:'row',alignItems:'center',justifyContent:'space-between'},profileWrap:{flexDirection:'row',alignItems:'center',flex:1},avatar:{width:45,height:45,borderRadius:15,backgroundColor:'rgba(255,255,255,.16)',alignItems:'center',justifyContent:'center',borderWidth:1,borderColor:'rgba(255,255,255,.22)',marginRight:10},avatarText:{fontSize:18,fontWeight:'900',color:COLORS.white},greeting:{fontSize:10,color:'#CFE1F8',fontWeight:'600'},userName:{fontSize:17,color:COLORS.white,fontWeight:'900',marginTop:2},notificationButton:{width:40,height:40,borderRadius:13,backgroundColor:'rgba(255,255,255,.13)',alignItems:'center',justifyContent:'center'},heroCaption:{fontSize:9,color:'#CFE1F8',marginTop:11,fontWeight:'600'},scrollContent:{padding:16,paddingBottom:35},punchCard:{position:'relative',overflow:'hidden',marginBottom:14,padding:16,borderRadius:23,backgroundColor:COLORS.primary,elevation:6,shadowColor:COLORS.primaryDark,shadowOpacity:.2,shadowRadius:15,shadowOffset:{width:0,height:7}},punchGlowOne:{position:'absolute',width:150,height:150,borderRadius:75,right:-65,top:-80,backgroundColor:'rgba(255,255,255,.07)'},punchGlowTwo:{position:'absolute',width:100,height:100,borderRadius:50,left:-55,bottom:-65,backgroundColor:'rgba(255,255,255,.045)'},punchCardHeader:{flexDirection:'row',alignItems:'center',justifyContent:'space-between'},punchTitleArea:{flexDirection:'row',alignItems:'center',flex:1},punchMainIcon:{width:43,height:43,borderRadius:14,backgroundColor:'rgba(255,255,255,.14)',alignItems:'center',justifyContent:'center',marginRight:11,borderWidth:1,borderColor:'rgba(255,255,255,.12)'},punchTitle:{fontSize:14,fontWeight:'900',color:COLORS.white},punchSubtitle:{fontSize:9,color:'#CFE1F8',marginTop:4,fontWeight:'500'},liveBadge:{flexDirection:'row',alignItems:'center',paddingHorizontal:9,paddingVertical:5,borderRadius:10,backgroundColor:'rgba(255,255,255,.12)',borderWidth:1,borderColor:'rgba(255,255,255,.12)'},liveDot:{width:6,height:6,borderRadius:3,backgroundColor:'#55E89A',marginRight:5},liveText:{fontSize:8,fontWeight:'900',color:'#DDF9EA',letterSpacing:.7},punchInfoRow:{flexDirection:'row',alignItems:'center',marginTop:14,paddingVertical:9,paddingHorizontal:10,borderRadius:12,backgroundColor:'rgba(255,255,255,.075)'},punchInfoItem:{flexDirection:'row',alignItems:'center',flex:1},punchInfoText:{marginLeft:6,fontSize:8.5,color:'#CFE1F8',fontWeight:'600'},punchInfoTimer:{color:'#55E89A',fontSize:10,fontWeight:'900',letterSpacing:.4},punchInfoDivider:{width:1,height:18,backgroundColor:'rgba(255,255,255,.15)',marginHorizontal:8},punchButtonsRow:{flexDirection:'row',gap:9,marginTop:12},punchButtonWrapper:{flex:1},punchButton:{minHeight:60,borderRadius:15,paddingHorizontal:11,paddingVertical:9,flexDirection:'row',alignItems:'center'},punchInButton:{backgroundColor:COLORS.white},punchOutButton:{backgroundColor:'rgba(255,255,255,.10)',borderWidth:1,borderColor:'rgba(255,255,255,.20)'},punchDisabledButton:{opacity:.55},punchButtonIcon:{width:37,height:37,borderRadius:12,backgroundColor:'#EEF5FF',alignItems:'center',justifyContent:'center',marginRight:9},punchButtonContent:{flex:1},punchButtonTitle:{fontSize:11,fontWeight:'900',color:COLORS.text},punchButtonSmall:{fontSize:8,color:COLORS.textSecondary,marginTop:3,fontWeight:'600'},disabledPunchText:{color:COLORS.textLight},sectionCard:{backgroundColor:COLORS.white,borderRadius:20,padding:15,marginBottom:14,borderWidth:1,borderColor:COLORS.border},sectionHeader:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginBottom:13},sectionTitle:{fontSize:14,fontWeight:'900',color:COLORS.text},sectionSubtitle:{fontSize:8.5,color:COLORS.textSecondary,marginTop:3},statusBadge:{flexDirection:'row',alignItems:'center',paddingHorizontal:9,paddingVertical:6,borderRadius:10},statusDot:{width:6,height:6,borderRadius:3,marginRight:5},statusText:{fontSize:8,fontWeight:'900'},attendanceGrid:{flexDirection:'row',gap:8},attendanceBox:{flex:1,padding:10,borderRadius:14,backgroundColor:'#F8FAFD'},smallIcon:{width:31,height:31,borderRadius:10,alignItems:'center',justifyContent:'center',marginBottom:8},boxLabel:{fontSize:8,color:COLORS.textSecondary,fontWeight:'600'},boxValue:{fontSize:10,color:COLORS.text,fontWeight:'900',marginTop:3},actionsGrid:{flexDirection:'row',flexWrap:'wrap',gap:9,marginBottom:14},actionItem:{width:'48%'},actionCard:{backgroundColor:COLORS.white,borderWidth:1,borderColor:COLORS.border,borderRadius:16,padding:11,flexDirection:'row',alignItems:'center'},actionIcon:{width:36,height:36,borderRadius:12,alignItems:'center',justifyContent:'center'},actionTitle:{fontSize:9.5,fontWeight:'800',color:COLORS.text,flex:1,marginLeft:8},summaryRow:{flexDirection:'row',gap:9,marginBottom:14},summaryCard:{flex:1,backgroundColor:COLORS.white,borderRadius:17,padding:12,borderWidth:1,borderColor:COLORS.border},summaryIcon:{width:34,height:34,borderRadius:11,alignItems:'center',justifyContent:'center',marginBottom:8},summaryValue:{fontSize:19,fontWeight:'900',color:COLORS.text},summaryTitle:{fontSize:8,color:COLORS.textSecondary,marginTop:2,fontWeight:'700'},leaveRow:{flexDirection:'row',alignItems:'center',padding:11,borderRadius:14,backgroundColor:'#F8FAFD'},leaveTitle:{fontSize:10,fontWeight:'900',color:COLORS.text},leaveSub:{fontSize:8,color:COLORS.textSecondary,marginTop:4},leaveStatus:{fontSize:8,fontWeight:'900',color:COLORS.primary},emptyState:{alignItems:'center',justifyContent:'center',paddingVertical:18},emptyText:{fontSize:9,color:COLORS.textLight,marginTop:7},directoryCard:{backgroundColor:COLORS.white,borderRadius:18,padding:13,flexDirection:'row',alignItems:'center',borderWidth:1,borderColor:COLORS.border,marginBottom:15},directoryIcon:{width:42,height:42,borderRadius:13,backgroundColor:COLORS.primary,alignItems:'center',justifyContent:'center',marginRight:10},directoryTitle:{fontSize:11,fontWeight:'900',color:COLORS.text},directorySub:{fontSize:8,color:COLORS.textSecondary,marginTop:3},loader:{flex:1,alignItems:'center',justifyContent:'center',backgroundColor:COLORS.background},loaderText:{marginTop:10,fontSize:10,color:COLORS.textSecondary,fontWeight:'700'},punchModalOverlay:{flex:1,backgroundColor:'rgba(7,27,55,.65)',justifyContent:'flex-end'},punchModal:{backgroundColor:'#FFF',borderTopLeftRadius:28,borderTopRightRadius:28,paddingHorizontal:18,paddingTop:18,paddingBottom:28,maxHeight:'88%'},modalHeader:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginBottom:15},modalTitle:{fontSize:19,fontWeight:'900',color:COLORS.text},modalSubtitle:{fontSize:9,color:COLORS.textSecondary,marginTop:4},modalClose:{width:38,height:38,borderRadius:12,backgroundColor:'#F1F5F9',alignItems:'center',justifyContent:'center'},photoContainer:{width:'100%',height:245,borderRadius:20,overflow:'hidden',backgroundColor:'#F3F7FC',borderWidth:1,borderColor:COLORS.border},capturedPhoto:{width:'100%',height:'100%',resizeMode:'cover'},cameraPlaceholder:{flex:1,alignItems:'center',justifyContent:'center'},cameraIconCircle:{width:70,height:70,borderRadius:23,backgroundColor:COLORS.primarySoft,alignItems:'center',justifyContent:'center'},cameraTitle:{marginTop:13,fontSize:17,color:COLORS.text,fontWeight:'900'},cameraSubtitle:{marginTop:5,fontSize:9,color:COLORS.textSecondary},retakeButton:{alignSelf:'center',marginTop:10,marginBottom:4,flexDirection:'row',alignItems:'center',paddingHorizontal:13,paddingVertical:8,borderRadius:10,backgroundColor:COLORS.primarySoft},retakeText:{marginLeft:5,fontSize:9,color:COLORS.primary,fontWeight:'900'},modalLocationCard:{marginTop:14,padding:12,borderRadius:16,backgroundColor:'#F8FAFD',flexDirection:'row',alignItems:'center',borderWidth:1,borderColor:'#EEF2F7'},modalLocationIcon:{width:42,height:42,borderRadius:13,backgroundColor:COLORS.greenSoft,alignItems:'center',justifyContent:'center'},modalLocationInfo:{flex:1,marginLeft:10},modalLocationTitle:{fontSize:10,color:COLORS.text,fontWeight:'900'},modalLocationText:{marginTop:4,fontSize:8,color:COLORS.textSecondary,lineHeight:13},locationVerified:{flexDirection:'row',alignItems:'center',marginTop:5},locationVerifiedText:{marginLeft:4,fontSize:7.5,color:COLORS.green,fontWeight:'800'},mapPreviewWrap:{marginTop:12,borderRadius:16,overflow:'hidden',borderWidth:1,borderColor:COLORS.border},mapPreview:{width:'100%',height:150},submitPunchButton:{height:52,marginTop:16,borderRadius:15,backgroundColor:COLORS.primary,flexDirection:'row',alignItems:'center',justifyContent:'center',elevation:4,shadowColor:COLORS.primaryDark,shadowOpacity:.18,shadowRadius:8,shadowOffset:{width:0,height:4}},submitPunchText:{marginLeft:8,color:'#FFF',fontSize:11,fontWeight:'900'},submitPunchDisabled:{opacity:.45},
+const styles = themedCreate({
+  safeArea:{flex:1,backgroundColor:COLORS.primary},container:{flex:1,backgroundColor:COLORS.background},heroHeader:{backgroundColor:COLORS.primary,paddingHorizontal:18,paddingTop:14,paddingBottom:22,borderBottomLeftRadius:32,borderBottomRightRadius:32,elevation:8,shadowColor:COLORS.primaryDark,shadowOpacity:.22,shadowRadius:15,shadowOffset:{width:0,height:7}},heroRow:{flexDirection:'row',alignItems:'center',justifyContent:'space-between'},profileWrap:{flexDirection:'row',alignItems:'center',flex:1},avatar:{width:45,height:45,borderRadius:15,backgroundColor:'rgba(255,255,255,.16)',alignItems:'center',justifyContent:'center',borderWidth:1,borderColor:'rgba(255,255,255,.22)',marginRight:10,overflow:'hidden'},avatarImage:{width:45,height:45},avatarText:{fontSize:18,fontWeight:'900',color:COLORS.white},greeting:{fontSize:10,color:'#CFE1F8',fontWeight:'600'},userName:{fontSize:17,color:COLORS.white,fontWeight:'900',marginTop:2},notificationButton:{width:40,height:40,borderRadius:13,backgroundColor:'rgba(255,255,255,.13)',alignItems:'center',justifyContent:'center'},heroCaption:{fontSize:9,color:'#CFE1F8',marginTop:11,fontWeight:'600'},scrollContent:{padding:16,paddingBottom:35},punchCard:{position:'relative',overflow:'hidden',marginBottom:14,padding:16,borderRadius:23,backgroundColor:COLORS.primary,elevation:6,shadowColor:COLORS.primaryDark,shadowOpacity:.2,shadowRadius:15,shadowOffset:{width:0,height:7}},punchGlowOne:{position:'absolute',width:150,height:150,borderRadius:75,right:-65,top:-80,backgroundColor:'rgba(255,255,255,.07)'},punchGlowTwo:{position:'absolute',width:100,height:100,borderRadius:50,left:-55,bottom:-65,backgroundColor:'rgba(255,255,255,.045)'},punchCardHeader:{flexDirection:'row',alignItems:'center',justifyContent:'space-between'},punchTitleArea:{flexDirection:'row',alignItems:'center',flex:1},punchMainIcon:{width:43,height:43,borderRadius:14,backgroundColor:'rgba(255,255,255,.14)',alignItems:'center',justifyContent:'center',marginRight:11,borderWidth:1,borderColor:'rgba(255,255,255,.12)'},punchTitle:{fontSize:14,fontWeight:'900',color:COLORS.white},punchSubtitle:{fontSize:9,color:'#CFE1F8',marginTop:4,fontWeight:'500'},liveBadge:{flexDirection:'row',alignItems:'center',paddingHorizontal:9,paddingVertical:5,borderRadius:10,backgroundColor:'rgba(255,255,255,.12)',borderWidth:1,borderColor:'rgba(255,255,255,.12)'},liveDot:{width:6,height:6,borderRadius:3,backgroundColor:'#55E89A',marginRight:5},liveText:{fontSize:8,fontWeight:'900',color:'#DDF9EA',letterSpacing:.7},punchInfoRow:{flexDirection:'row',alignItems:'center',marginTop:14,paddingVertical:9,paddingHorizontal:10,borderRadius:12,backgroundColor:'rgba(255,255,255,.075)'},punchInfoItem:{flexDirection:'row',alignItems:'center',flex:1},punchInfoText:{marginLeft:6,fontSize:8.5,color:'#CFE1F8',fontWeight:'600'},punchInfoTimer:{color:'#55E89A',fontSize:10,fontWeight:'900',letterSpacing:.4},punchInfoDivider:{width:1,height:18,backgroundColor:'rgba(255,255,255,.15)',marginHorizontal:8},punchButtonsRow:{flexDirection:'row',gap:9,marginTop:12},punchButtonWrapper:{flex:1},punchButton:{minHeight:60,borderRadius:15,paddingHorizontal:11,paddingVertical:9,flexDirection:'row',alignItems:'center'},punchInButton:{backgroundColor:COLORS.white},punchOutButton:{backgroundColor:'rgba(255,255,255,.10)',borderWidth:1,borderColor:'rgba(255,255,255,.20)'},punchDisabledButton:{opacity:.55},punchButtonIcon:{width:37,height:37,borderRadius:12,backgroundColor:'#EEF5FF',alignItems:'center',justifyContent:'center',marginRight:9},punchButtonContent:{flex:1},punchButtonTitle:{fontSize:11,fontWeight:'900',color:COLORS.text},punchButtonSmall:{fontSize:8,color:COLORS.textSecondary,marginTop:3,fontWeight:'600'},disabledPunchText:{color:COLORS.textLight},sectionCard:{backgroundColor:COLORS.white,borderRadius:20,padding:15,marginBottom:14,borderWidth:1,borderColor:COLORS.border},sectionHeader:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginBottom:13},sectionTitle:{fontSize:14,fontWeight:'900',color:COLORS.text},sectionSubtitle:{fontSize:8.5,color:COLORS.textSecondary,marginTop:3},statusBadge:{flexDirection:'row',alignItems:'center',paddingHorizontal:9,paddingVertical:6,borderRadius:10},statusDot:{width:6,height:6,borderRadius:3,marginRight:5},statusText:{fontSize:8,fontWeight:'900'},attendanceGrid:{flexDirection:'row',gap:8},attendanceBox:{flex:1,padding:10,borderRadius:14,backgroundColor:'#F8FAFD'},smallIcon:{width:31,height:31,borderRadius:10,alignItems:'center',justifyContent:'center',marginBottom:8},boxLabel:{fontSize:8,color:COLORS.textSecondary,fontWeight:'600'},boxValue:{fontSize:10,color:COLORS.text,fontWeight:'900',marginTop:3},actionsGrid:{flexDirection:'row',flexWrap:'wrap',gap:9,marginBottom:14},actionItem:{width:'48%'},actionCard:{backgroundColor:COLORS.white,borderWidth:1,borderColor:COLORS.border,borderRadius:16,padding:11,flexDirection:'row',alignItems:'center'},actionIcon:{width:36,height:36,borderRadius:12,alignItems:'center',justifyContent:'center'},actionTitle:{fontSize:9.5,fontWeight:'800',color:COLORS.text,flex:1,marginLeft:8},summaryRow:{flexDirection:'row',gap:9,marginBottom:14},summaryCard:{flex:1,backgroundColor:COLORS.white,borderRadius:17,padding:12,borderWidth:1,borderColor:COLORS.border},summaryIcon:{width:34,height:34,borderRadius:11,alignItems:'center',justifyContent:'center',marginBottom:8},summaryValue:{fontSize:19,fontWeight:'900',color:COLORS.text},summaryTitle:{fontSize:8,color:COLORS.textSecondary,marginTop:2,fontWeight:'700'},leaveRow:{flexDirection:'row',alignItems:'center',padding:11,borderRadius:14,backgroundColor:'#F8FAFD'},leaveTitle:{fontSize:10,fontWeight:'900',color:COLORS.text},leaveSub:{fontSize:8,color:COLORS.textSecondary,marginTop:4},leaveStatus:{fontSize:8,fontWeight:'900',color:COLORS.primary},emptyState:{alignItems:'center',justifyContent:'center',paddingVertical:18},emptyText:{fontSize:9,color:COLORS.textLight,marginTop:7},directoryCard:{backgroundColor:COLORS.white,borderRadius:18,padding:13,flexDirection:'row',alignItems:'center',borderWidth:1,borderColor:COLORS.border,marginBottom:15},directoryIcon:{width:42,height:42,borderRadius:13,backgroundColor:COLORS.primary,alignItems:'center',justifyContent:'center',marginRight:10},directoryTitle:{fontSize:11,fontWeight:'900',color:COLORS.text},directorySub:{fontSize:8,color:COLORS.textSecondary,marginTop:3},loader:{flex:1,alignItems:'center',justifyContent:'center',backgroundColor:COLORS.background},loaderText:{marginTop:10,fontSize:10,color:COLORS.textSecondary,fontWeight:'700'},punchModalOverlay:{flex:1,backgroundColor:'rgba(7,27,55,.65)',justifyContent:'flex-end'},punchModal:{backgroundColor:'#FFF',borderTopLeftRadius:28,borderTopRightRadius:28,paddingHorizontal:18,paddingTop:18,paddingBottom:28,maxHeight:'88%'},modalHeader:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginBottom:15},modalTitle:{fontSize:19,fontWeight:'900',color:COLORS.text},modalSubtitle:{fontSize:9,color:COLORS.textSecondary,marginTop:4},modalClose:{width:38,height:38,borderRadius:12,backgroundColor:'#F1F5F9',alignItems:'center',justifyContent:'center'},photoContainer:{width:'100%',height:245,borderRadius:20,overflow:'hidden',backgroundColor:'#F3F7FC',borderWidth:1,borderColor:COLORS.border},capturedPhoto:{width:'100%',height:'100%',resizeMode:'cover'},cameraPlaceholder:{flex:1,alignItems:'center',justifyContent:'center'},cameraIconCircle:{width:70,height:70,borderRadius:23,backgroundColor:COLORS.primarySoft,alignItems:'center',justifyContent:'center'},cameraTitle:{marginTop:13,fontSize:17,color:COLORS.text,fontWeight:'900'},cameraSubtitle:{marginTop:5,fontSize:9,color:COLORS.textSecondary},retakeButton:{alignSelf:'center',marginTop:10,marginBottom:4,flexDirection:'row',alignItems:'center',paddingHorizontal:13,paddingVertical:8,borderRadius:10,backgroundColor:COLORS.primarySoft},retakeText:{marginLeft:5,fontSize:9,color:COLORS.primary,fontWeight:'900'},modalLocationCard:{marginTop:14,padding:12,borderRadius:16,backgroundColor:'#F8FAFD',flexDirection:'row',alignItems:'center',borderWidth:1,borderColor:'#EEF2F7'},modalLocationIcon:{width:42,height:42,borderRadius:13,backgroundColor:COLORS.greenSoft,alignItems:'center',justifyContent:'center'},modalLocationInfo:{flex:1,marginLeft:10},modalLocationTitle:{fontSize:10,color:COLORS.text,fontWeight:'900'},modalLocationText:{marginTop:4,fontSize:8,color:COLORS.textSecondary,lineHeight:13},locationVerified:{flexDirection:'row',alignItems:'center',marginTop:5},locationVerifiedText:{marginLeft:4,fontSize:7.5,color:COLORS.green,fontWeight:'800'},mapPreviewWrap:{marginTop:12,borderRadius:16,overflow:'hidden',borderWidth:1,borderColor:COLORS.border},mapPreview:{width:'100%',height:150},submitPunchButton:{height:52,marginTop:16,borderRadius:15,backgroundColor:COLORS.primary,flexDirection:'row',alignItems:'center',justifyContent:'center',elevation:4,shadowColor:COLORS.primaryDark,shadowOpacity:.18,shadowRadius:8,shadowOffset:{width:0,height:4}},submitPunchText:{marginLeft:8,color:'#FFF',fontSize:11,fontWeight:'900'},submitPunchDisabled:{opacity:.45},
 
   punctualityBadge:{paddingHorizontal:9,paddingVertical:6,borderRadius:10},punctualityText:{fontSize:8,fontWeight:'900'},monthPill:{backgroundColor:COLORS.primarySoft,paddingHorizontal:10,paddingVertical:6,borderRadius:10},monthPillText:{fontSize:8,fontWeight:'900',color:COLORS.primary},overviewGrid:{flexDirection:'row',gap:7},overviewChip:{flex:1,borderRadius:13,paddingVertical:10,alignItems:'center'},overviewChipValue:{fontSize:15,fontWeight:'900'},overviewChipLabel:{fontSize:7.5,color:COLORS.textSecondary,fontWeight:'700',marginTop:3},overviewBarTrack:{flexDirection:'row',height:7,borderRadius:4,overflow:'hidden',marginTop:14,backgroundColor:'#F1F5F9'},overviewBarSeg:{height:'100%'},overviewFootnote:{fontSize:8,color:COLORS.textSecondary,marginTop:9,fontWeight:'600'},
 

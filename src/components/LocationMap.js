@@ -11,6 +11,7 @@
 // any map — Google Maps needs internet too.
 
 import React, { useMemo } from 'react';
+import { themedCreate } from '../theme/themedStyles';
 import { View, StyleSheet, ActivityIndicator, TouchableOpacity, Text, Linking } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { ExternalLink } from 'lucide-react-native';
@@ -99,7 +100,7 @@ const LocationMap = ({ latitude, longitude, height = 150, zoom = 16, interactive
   );
 };
 
-const styles = StyleSheet.create({
+const styles = themedCreate({
   wrap: { width: '100%', borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: '#E6ECF4', backgroundColor: '#F3F7FC' },
   webview: { flex: 1, backgroundColor: 'transparent' },
   loading: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F3F7FC' },

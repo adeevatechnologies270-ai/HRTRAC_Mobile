@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { themedCreate } from '../theme/themedStyles';
 import {
   Alert,
   ActivityIndicator,
@@ -426,7 +427,7 @@ export default function LeaveScreen({ navigation }) {
   );
 }
 
-const s = StyleSheet.create({
+const s = themedCreate({
   banner: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF6E0', borderRadius: 12, padding: 12, marginBottom: 10 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   balCard: { width: '48%', backgroundColor: '#fff', borderRadius: 14, padding: 12, borderTopWidth: 3 },

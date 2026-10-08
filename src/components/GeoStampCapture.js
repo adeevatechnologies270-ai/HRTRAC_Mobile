@@ -36,6 +36,7 @@
 // it ever calls .capture().
 
 import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { themedCreate } from '../theme/themedStyles';
 import { View, Image, Text, StyleSheet } from 'react-native';
 import ViewShot from 'react-native-view-shot';
 import { MapPin, Navigation } from 'lucide-react-native';
@@ -146,7 +147,7 @@ const GeoStampCapture = forwardRef((props, ref) => {
   );
 });
 
-const styles = StyleSheet.create({
+const styles = themedCreate({
   offscreen: { position: 'absolute', top: -10000, left: -10000 },
   canvas: { width: 900, height: 1200, backgroundColor: '#0B1B2E' },
 

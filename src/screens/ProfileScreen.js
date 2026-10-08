@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { themedCreate } from '../theme/themedStyles';
 import {
   ActivityIndicator,
   Image,
@@ -378,7 +379,7 @@ export default function ProfileScreen({ navigation }) {
   );
 }
 
-const s = StyleSheet.create({
+const s = themedCreate({
   profileCard: { backgroundColor: '#fff', borderRadius: 22, alignItems: 'center', paddingVertical: 22, borderWidth: 1, borderColor: '#E6ECF4' },
   avatarWrap: { position: 'relative' },
   avatarImg: { width: 96, height: 96, borderRadius: 48 },

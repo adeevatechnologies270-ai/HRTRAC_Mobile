@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { themedCreate } from '../theme/themedStyles';
 import { ActivityIndicator, Modal, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BellOff, CheckCheck, Megaphone, MessageSquare, X } from 'lucide-react-native';
@@ -174,7 +175,7 @@ const NotificationSheet = ({ visible, onClose, notif }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = themedCreate({
   overlay: { flex: 1, backgroundColor: 'rgba(7,27,55,.55)', justifyContent: 'flex-end' },
   sheet: { maxHeight: '82%', minHeight: '45%', backgroundColor: '#FFFFFF', borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 16, paddingTop: 10 },
   handle: { alignSelf: 'center', width: 42, height: 4, borderRadius: 2, backgroundColor: '#E2E8F0', marginBottom: 12 },

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { themedCreate } from '../theme/themedStyles';
 import { Animated, Easing, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { AlertTriangle, CheckCircle2, Info, XCircle } from 'lucide-react-native';
 
@@ -64,7 +65,7 @@ const StatusDialog = ({
   );
 };
 
-const styles = StyleSheet.create({
+const styles = themedCreate({
   overlay: { flex: 1, backgroundColor: 'rgba(7,27,55,.6)', alignItems: 'center', justifyContent: 'center', padding: 28 },
   card: { width: '100%', maxWidth: 340, backgroundColor: '#FFFFFF', borderRadius: 26, padding: 22, alignItems: 'center', elevation: 12 },
   iconWrap: { width: 78, height: 78, borderRadius: 39, alignItems: 'center', justifyContent: 'center' },

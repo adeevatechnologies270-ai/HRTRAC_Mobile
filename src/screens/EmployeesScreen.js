@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { themedCreate, tc } from '../theme/themedStyles';
 import {
   ActivityIndicator,
   FlatList,
@@ -6,7 +7,6 @@ import {
   Linking,
   RefreshControl,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
@@ -22,6 +22,9 @@ const COLORS = {
   light: '#94A3B8', border: '#E6ECF4', green: '#16A05D', greenSoft: '#E8F8F0',
   purple: '#7551D8', purpleSoft: '#F1EDFF', orange: '#E98A24', orangeSoft: '#FFF4E7',
 };
+
+// Inline (non-StyleSheet) colors ko current theme ke hisaab se badalta hai.
+const tb = (c) => tc(c, 'bg');
 
 const roleOf = (u) => u.user_type || u.role || u.type || 'Employee';
 const nameOf = (u) => `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email || 'Employee';
@@ -89,7 +92,7 @@ export default function EmployeesScreen({ navigation }) {
         <View style={{ flex: 1, marginLeft: 12 }}>
           <Text style={s.name} numberOfLines={1}>{name}</Text>
           <Text style={s.email} numberOfLines={1}>{u.email || '---'}</Text>
-          <View style={[s.rolePill, { backgroundColor: rc.bg }]}>
+          <View style={[s.rolePill, { backgroundColor: tb(rc.bg) }]}>
             <Text style={[s.roleText, { color: rc.fg }]}>{role}</Text>
           </View>
         </View>
@@ -97,12 +100,12 @@ export default function EmployeesScreen({ navigation }) {
         <View style={s.actions}>
           {u.mobile_no ? (
             <TouchableOpacity style={s.actionBtn} onPress={() => Linking.openURL(`tel:${u.mobile_no}`)}>
-              <Phone size={16} color={COLORS.primary} />
+              <Phone size={16} color={tc(COLORS.primary)} />
             </TouchableOpacity>
           ) : null}
           {u.email ? (
             <TouchableOpacity style={s.actionBtn} onPress={() => Linking.openURL(`mailto:${u.email}`)}>
-              <Mail size={16} color={COLORS.primary} />
+              <Mail size={16} color={tc(COLORS.primary)} />
             </TouchableOpacity>
           ) : null}
         </View>
@@ -114,7 +117,7 @@ export default function EmployeesScreen({ navigation }) {
     <ScreenShell title="Employee Directory" subtitle={`${items.length} people in your organization`} navigation={navigation}>
       <View style={s.top}>
         <View style={s.searchBox}>
-          <Search size={17} color={COLORS.light} />
+          <Search size={17} color={tc(COLORS.light)} />
           <TextInput
             style={s.searchInput}
             value={search}
@@ -124,7 +127,7 @@ export default function EmployeesScreen({ navigation }) {
           />
           {search ? (
             <TouchableOpacity onPress={() => setSearch('')}>
-              <X size={17} color={COLORS.light} />
+              <X size={17} color={tc(COLORS.light)} />
             </TouchableOpacity>
           ) : null}
         </View>
@@ -140,7 +143,7 @@ export default function EmployeesScreen({ navigation }) {
       </View>
 
       {loading ? (
-        <ActivityIndicator color={COLORS.primary} style={{ marginTop: 40 }} />
+        <ActivityIndicator color={tc(COLORS.primary)} style={{ marginTop: 40 }} />
       ) : (
         <FlatList
           data={filtered}
@@ -149,7 +152,7 @@ export default function EmployeesScreen({ navigation }) {
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={tc(COLORS.primary)} />}
           ListEmptyComponent={
             <View style={s.empty}>
               <Text style={{ fontSize: 28 }}>👥</Text>
@@ -162,7 +165,7 @@ export default function EmployeesScreen({ navigation }) {
   );
 }
 
-const s = StyleSheet.create({
+const s = themedCreate({
   top: { paddingHorizontal: 16, paddingTop: 16 },
   searchBox: {
     flexDirection: 'row', alignItems: 'center', gap: 8, height: 46, borderRadius: 14,

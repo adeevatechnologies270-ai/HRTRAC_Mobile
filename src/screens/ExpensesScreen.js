@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { themedCreate } from '../theme/themedStyles';
 import {
   Alert,
   ActivityIndicator,
@@ -548,7 +549,7 @@ function Detail({ label, value }) {
   );
 }
 
-const s = StyleSheet.create({
+const s = themedCreate({
   statGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 4 },
   statCard: { width: '48%', backgroundColor: '#fff', borderRadius: 14, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
   statIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },

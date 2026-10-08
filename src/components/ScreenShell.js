@@ -1,5 +1,14 @@
+
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { themedCreate } from '../theme/themedStyles';
+import {
+  Animated,
+  Easing,
+  StatusBar,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Bell } from 'lucide-react-native';
 import NotificationSheet, { useNotifications } from './NotificationSheet';
@@ -10,15 +19,18 @@ const PRIMARY_DARK = '#073B7A';
 const BG = '#F4F7FB';
 
 /**
- * Dashboard jaisa hi header (same padding, radius, height) har screen ke liye:
- *   [ <- back ]  HRTRAC / Title                [ bell + badge ]
- *   caption line
+ * Dashboard matching curved header for all screens.
  *
- * Usage:
- *   <ScreenShell title="Leave" subtitle="Manage your leave requests" navigation={navigation}>
- *     ...screen body (ScrollView / FlatList)...
- *   </ScreenShell>
+ * Header:
+ *
+ *   [ <- ]   HRTRAC
+ *            Screen Title                    [ Bell ]
+ *
+ *            Subtitle
+ *
+ * Same curved blue header as Dashboard.
  */
+
 export default function ScreenShell({
   title,
   subtitle = 'HRTRAC • Manage your work',
@@ -28,102 +40,324 @@ export default function ScreenShell({
   hideBack = false,
 }) {
   const { user } = useAuth();
+
   const notif = useNotifications(user?.id);
+
   const [notifVisible, setNotifVisible] = useState(false);
+
   const anim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.timing(anim, {
       toValue: 1,
-      duration: 450,
+      duration: 500,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
   }, [anim]);
 
   const goBack = () => {
-    if (onBack) return onBack();
-    if (navigation?.canGoBack?.()) navigation.goBack();
-    else navigation?.navigate?.('Main', { screen: 'Home' });
+    if (onBack) {
+      return onBack();
+    }
+
+    if (navigation?.canGoBack?.()) {
+      navigation.goBack();
+    } else {
+      navigation?.navigate?.('Main', {
+        screen: 'Home',
+      });
+    }
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <StatusBar barStyle="light-content" backgroundColor={PRIMARY} translucent={false} />
+    <SafeAreaView
+      style={styles.safeArea}
+      edges={['top', 'left', 'right']}
+    >
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor={PRIMARY}
+        translucent={false}
+      />
 
-      <Animated.View
-        style={[
-          styles.header,
-          {
-            opacity: anim,
-            transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) }],
-          },
-        ]}
-      >
-        <View style={styles.row}>
-          <View style={styles.left}>
-            {!hideBack && (
-              <TouchableOpacity style={styles.iconBtn} activeOpacity={0.8} onPress={goBack}>
-                <ArrowLeft size={20} color="#fff" />
-              </TouchableOpacity>
-            )}
-            <View style={{ flex: 1, marginLeft: hideBack ? 0 : 12 }}>
-              <Text style={styles.tag}>HRTRAC</Text>
-              <Text style={styles.title} numberOfLines={1}>{title}</Text>
+      <View style={styles.container}>
+
+        {/* =========================================================
+            CURVED HEADER
+            Same design as Dashboard heroHeader
+        ========================================================== */}
+        <Animated.View
+          style={[
+            styles.heroHeader,
+            {
+              opacity: anim,
+              transform: [
+                {
+                  translateY: anim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [18, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <View style={styles.heroRow}>
+
+            {/* LEFT SIDE */}
+            <View style={styles.leftSection}>
+
+              {!hideBack && (
+                <TouchableOpacity
+                  style={styles.iconButton}
+                  activeOpacity={0.8}
+                  onPress={goBack}
+                >
+                  <ArrowLeft
+                    size={20}
+                    color="#FFFFFF"
+                  />
+                </TouchableOpacity>
+              )}
+
+              <View
+                style={[
+                  styles.titleArea,
+                  {
+                    marginLeft: hideBack ? 0 : 12,
+                  },
+                ]}
+              >
+                <Text style={styles.greeting}>
+                  HRTRAC
+                </Text>
+
+                <Text
+                  style={styles.screenTitle}
+                  numberOfLines={1}
+                >
+                  {title}
+                </Text>
+              </View>
+
             </View>
+
+            {/* NOTIFICATION */}
+            <Animated.View
+              style={{
+                transform: [
+                  {
+                    scale: anim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.92, 1],
+                    }),
+                  },
+                ],
+              }}
+            >
+              <TouchableOpacity
+                style={styles.notificationButton}
+                activeOpacity={0.8}
+                onPress={() => setNotifVisible(true)}
+              >
+                <Bell
+                  size={19}
+                  color="#FFFFFF"
+                />
+
+                {notif.unreadCount > 0 && (
+                  <View style={styles.bellBadge}>
+                    <Text style={styles.bellBadgeText}>
+                      {notif.unreadCount > 9
+                        ? '9+'
+                        : notif.unreadCount}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </Animated.View>
+
           </View>
 
-          <TouchableOpacity style={styles.iconBtn} activeOpacity={0.8} onPress={() => setNotifVisible(true)}>
-            <Bell size={19} color="#fff" />
-            {notif.unreadCount > 0 && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{notif.unreadCount > 9 ? '9+' : notif.unreadCount}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
+          {/* HEADER SUBTITLE */}
+          <Text
+            style={styles.heroCaption}
+            numberOfLines={1}
+          >
+            {subtitle}
+          </Text>
+
+        </Animated.View>
+
+        {/* =========================================================
+            SCREEN BODY
+        ========================================================== */}
+        <View style={styles.body}>
+          {children}
         </View>
-        <Text style={styles.caption} numberOfLines={1}>{subtitle}</Text>
-      </Animated.View>
 
-      <View style={styles.body}>{children}</View>
+      </View>
 
-      <NotificationSheet visible={notifVisible} onClose={() => setNotifVisible(false)} notif={notif} />
+      {/* =========================================================
+          NOTIFICATION SHEET
+      ========================================================== */}
+      <NotificationSheet
+        visible={notifVisible}
+        onClose={() => setNotifVisible(false)}
+        notif={notif}
+      />
+
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: PRIMARY },
-  body: { flex: 1, backgroundColor: BG },
-  // Values dashboard ke heroHeader se bilkul same
-  header: {
+const styles = themedCreate({
+
+  safeArea: {
+    flex: 1,
     backgroundColor: PRIMARY,
+  },
+
+  container: {
+    flex: 1,
+    backgroundColor: BG,
+  },
+
+  // ============================================================
+  // SAME AS DASHBOARD heroHeader
+  // ============================================================
+  heroHeader: {
+    backgroundColor: PRIMARY,
+
     paddingHorizontal: 18,
     paddingTop: 14,
     paddingBottom: 22,
+
     borderBottomLeftRadius: 32,
     borderBottomRightRadius: 32,
+
     elevation: 8,
+
     shadowColor: PRIMARY_DARK,
     shadowOpacity: 0.22,
     shadowRadius: 15,
-    shadowOffset: { width: 0, height: 7 },
-    zIndex: 2,
+
+    shadowOffset: {
+      width: 0,
+      height: 7,
+    },
+
+    zIndex: 10,
   },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 45 },
-  left: { flexDirection: 'row', alignItems: 'center', flex: 1 },
-  iconBtn: {
-    width: 40, height: 40, borderRadius: 13,
+
+  heroRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  leftSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+
+  // ============================================================
+  // BACK BUTTON
+  // ============================================================
+  iconButton: {
+    width: 40,
+    height: 40,
+
+    borderRadius: 13,
+
     backgroundColor: 'rgba(255,255,255,.13)',
-    alignItems: 'center', justifyContent: 'center',
+
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  tag: { fontSize: 10, color: '#CFE1F8', fontWeight: '600' },
-  title: { fontSize: 17, color: '#fff', fontWeight: '900', marginTop: 2 },
-  caption: { fontSize: 9, color: '#CFE1F8', marginTop: 11, fontWeight: '600' },
-  badge: {
-    position: 'absolute', top: -4, right: -4, minWidth: 18, height: 18, paddingHorizontal: 4,
-    borderRadius: 9, backgroundColor: '#EF4444', alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1.5, borderColor: PRIMARY,
+
+  // ============================================================
+  // TITLE
+  // ============================================================
+  titleArea: {
+    flex: 1,
   },
-  badgeText: { color: '#fff', fontSize: 9, fontWeight: '900' },
+
+  greeting: {
+    fontSize: 10,
+    color: '#CFE1F8',
+    fontWeight: '600',
+  },
+
+  screenTitle: {
+    fontSize: 17,
+    color: '#FFFFFF',
+    fontWeight: '900',
+    marginTop: 2,
+  },
+
+  // ============================================================
+  // NOTIFICATION
+  // ============================================================
+  notificationButton: {
+    width: 40,
+    height: 40,
+
+    borderRadius: 13,
+
+    backgroundColor: 'rgba(255,255,255,.13)',
+
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  bellBadge: {
+    position: 'absolute',
+
+    top: -4,
+    right: -4,
+
+    minWidth: 18,
+    height: 18,
+
+    paddingHorizontal: 4,
+
+    borderRadius: 9,
+
+    backgroundColor: '#EF4444',
+
+    alignItems: 'center',
+    justifyContent: 'center',
+
+    borderWidth: 1.5,
+    borderColor: PRIMARY,
+  },
+
+  bellBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '900',
+  },
+
+  // ============================================================
+  // SUBTITLE
+  // ============================================================
+  heroCaption: {
+    fontSize: 9,
+    color: '#CFE1F8',
+
+    marginTop: 11,
+
+    fontWeight: '600',
+  },
+
+  // ============================================================
+  // BODY
+  // ============================================================
+  body: {
+    flex: 1,
+    backgroundColor: BG,
+  },
 });

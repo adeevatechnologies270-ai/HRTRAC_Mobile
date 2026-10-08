@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { themedCreate } from '../theme/themedStyles';
 import {
   View,
   Text,
@@ -179,7 +180,7 @@ export function FilePickerRow({ label, file, onPick, onClear }) {
 }
 
 /* ---------- Shared styles ---------- */
-export const ui = StyleSheet.create({
+export const ui = themedCreate({
   safe: { flex: 1, backgroundColor: colors.bg },
   header: {
     backgroundColor: colors.primary,
