@@ -38,15 +38,55 @@ const PALETTE = [
   '#1687B7',
 ];
 
-// Theme helpers
 const tb = c => tc(c, 'bg');
 const tt = c => tc(c);
 const tborder = c => tc(c, 'border');
 
-// Dashboard ScrollView has 16px horizontal padding on both sides.
 const CARD_W = Dimensions.get('window').width - 32;
 const GAP = 12;
 const SNAP = CARD_W + GAP;
+
+/* -------------------------------------------------------
+   IMAGE URL HELPER
+
+   Backend may return:
+   http://api.hrtrac.in/media/...
+   https://api.hrtrac.in/media/...
+   /media/...
+   media/...
+
+   Android production build should use HTTPS.
+------------------------------------------------------- */
+const resolveImage = value => {
+  if (!value) return null;
+
+  let raw = String(value).trim();
+
+  if (!raw) return null;
+
+  // Remove accidental wrapping quotes
+  raw = raw.replace(/^["']|["']$/g, '');
+
+  // Convert HTTP API image URL to HTTPS
+  if (/^http:\/\//i.test(raw)) {
+    raw = raw.replace(/^http:\/\//i, 'https://');
+  }
+
+  // Already an absolute URL
+  if (/^https?:\/\//i.test(raw)) {
+    return raw;
+  }
+
+  // Build absolute URL from API base
+  const base = String(API_BASE_URL || '')
+    .replace(/\/+$/, '');
+
+  const path = raw.startsWith('/')
+    ? raw
+    : `/${raw}`;
+
+  return `${base}${path}`;
+};
 
 const getLocalDate = value => {
   if (!value) return null;
@@ -67,24 +107,6 @@ const fmt = d =>
     month: 'long',
     year: 'numeric',
   });
-
-// Backend field names are not confirmed, so we try the likely ones.
-const resolveImage = h => {
-  const raw =
-    h.image ||
-    h.banner ||
-    h.banner_image ||
-    h.photo ||
-    h.image_url;
-
-  if (!raw) return null;
-
-  return /^https?:/i.test(raw)
-    ? raw
-    : `${API_BASE_URL}${
-        String(raw).startsWith('/') ? '' : '/'
-      }${raw}`;
-};
 
 const STATUS = {
   past: {
@@ -138,25 +160,40 @@ const HolidayBanners = ({ holidays = [] }) => {
         const sameDay =
           start.getTime() === end.getTime();
 
+        const rawImage =
+          h.image ||
+          h.banner ||
+          h.banner_image ||
+          h.photo ||
+          h.image_url;
+
+        const image = resolveImage(rawImage);
+
         return {
           id: String(h.id ?? i),
+
           name:
             h.name ||
             h.title ||
             h.holiday_name ||
             h.occasion ||
             'Holiday',
+
           description:
             h.description ||
             h.note ||
             '',
-          image: resolveImage(h),
+
+          image,
+
           start,
           end,
           status,
+
           dateText: sameDay
             ? fmt(start)
             : `${fmt(start)} - ${fmt(end)}`,
+
           color:
             PALETTE[i % PALETTE.length],
         };
@@ -165,7 +202,6 @@ const HolidayBanners = ({ holidays = [] }) => {
       .sort((a, b) => a.start - b.start);
   }, [holidays]);
 
-  // Open on the next upcoming holiday instead of January.
   const startIndex = useMemo(() => {
     const i = items.findIndex(
       x => x.status !== 'past'
@@ -227,20 +263,34 @@ const HolidayBanners = ({ holidays = [] }) => {
       </>
     );
 
-    return item.image ? (
-      <ImageBackground
-        source={{ uri: item.image }}
-        style={[
-          styles.banner,
-          {
-            backgroundColor: item.color,
-          },
-        ]}
-        imageStyle={styles.bannerImg}
-      >
-        {content}
-      </ImageBackground>
-    ) : (
+    if (item.image) {
+      return (
+        <ImageBackground
+          source={{
+            uri: item.image,
+          }}
+          style={[
+            styles.banner,
+            {
+              backgroundColor: item.color,
+            },
+          ]}
+          imageStyle={styles.bannerImg}
+          resizeMode="cover"
+          onError={e => {
+            console.log(
+              'Holiday image failed:',
+              item.image,
+              e?.nativeEvent?.error
+            );
+          }}
+        >
+          {content}
+        </ImageBackground>
+      );
+    }
+
+    return (
       <View
         style={[
           styles.banner,
@@ -273,9 +323,7 @@ const HolidayBanners = ({ holidays = [] }) => {
         {items.length > 0 && (
           <TouchableOpacity
             style={styles.viewAll}
-            onPress={() =>
-              setAllVisible(true)
-            }
+            onPress={() => setAllVisible(true)}
           >
             <Text style={styles.viewAllText}>
               View all
@@ -358,23 +406,18 @@ const HolidayBanners = ({ holidays = [] }) => {
               All Holidays
             </Text>
 
-          <TouchableOpacity
-            style={[
-              styles.close,
-              {
-                backgroundColor: tb('#000000'),
-              },
-            ]}
-            onPress={() =>
-              setAllVisible(false)
-            }
-          >
-            <X
-              size={21}
-              color={tc(COLORS.text)}
-              strokeWidth={2.5}
-            />
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.close}
+              onPress={() =>
+                setAllVisible(false)
+              }
+            >
+              <X
+                size={21}
+                color={tc(COLORS.text)}
+                strokeWidth={2.5}
+              />
+            </TouchableOpacity>
           </View>
 
           <ScrollView
@@ -384,8 +427,7 @@ const HolidayBanners = ({ holidays = [] }) => {
             }}
           >
             {items.map(item => {
-              const s =
-                STATUS[item.status];
+              const s = STATUS[item.status];
 
               return (
                 <View
@@ -442,8 +484,7 @@ const HolidayBanners = ({ holidays = [] }) => {
                         styles.rowBadgeText,
                         {
                           color:
-                            item.status ===
-                            'past'
+                            item.status === 'past'
                               ? tt(
                                   COLORS.textSecondary
                                 )
@@ -518,8 +559,7 @@ const styles = themedCreate({
 
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor:
-      'rgba(7,27,55,.38)',
+    backgroundColor: 'rgba(7,27,55,.38)',
   },
 
   circleOne: {
@@ -529,8 +569,7 @@ const styles = themedCreate({
     borderRadius: 80,
     right: -50,
     top: -60,
-    backgroundColor:
-      'rgba(255,255,255,.12)',
+    backgroundColor: 'rgba(255,255,255,.12)',
   },
 
   circleTwo: {
@@ -540,8 +579,7 @@ const styles = themedCreate({
     borderRadius: 50,
     left: -30,
     bottom: -40,
-    backgroundColor:
-      'rgba(255,255,255,.08)',
+    backgroundColor: 'rgba(255,255,255,.08)',
   },
 
   badge: {
@@ -609,14 +647,14 @@ const styles = themedCreate({
     flex: 1,
   },
 
-modalHeader: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  paddingHorizontal: 18,
-  paddingTop: 18,
-  paddingBottom: 14,
-},
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 14,
+  },
 
   modalTitle: {
     fontSize: 19,
