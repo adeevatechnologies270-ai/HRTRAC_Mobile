@@ -35,6 +35,7 @@ import {
   LogIn,
   LogOut,
   MapPin,
+  Maximize2,
   MoreHorizontal,
   Paperclip,
   Pencil,
@@ -103,6 +104,22 @@ const getLocalDate = value => {
   return new Date(y, m - 1, d);
 };
 const fmtDate = d => (d ? d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '');
+
+// Backend image field name alag ho sakta hai, isliye kai options check karte hain.
+const getPhotoValue = s => s?.image || s?.photo || s?.punch_image || s?.image_url || s?.punch_in_image;
+
+// Relative path ("/media/..") ko full URL banata hai. Agar API https hai to http image ko https kar deta hai (iOS http block karta hai).
+const resolveImageUrl = value => {
+  if (!value) return null;
+  const url = String(value).trim();
+  const base = String(client?.defaults?.baseURL || '');
+  const origin = (base.match(/^https?:\/\/[^/]+/) || [''])[0];
+  if (/^https?:\/\//i.test(url)) {
+    return origin.startsWith('https://') ? url.replace(/^http:\/\//i, 'https://') : url;
+  }
+  if (!origin) return url;
+  return `${origin}${url.startsWith('/') ? '' : '/'}${url}`;
+};
 
 // ---- Multi-session attendance helpers (a day can have several in/out pairs) -
 const isToday = value => {
@@ -188,6 +205,40 @@ const VIEW_TABS = [
   { id: 'log', label: 'Log', icon: List },
   { id: 'calendar', label: 'Calendar', icon: CalendarDays },
 ];
+
+// Detail modal ki photo: loader dikhata hai, fail hone par placeholder + console log.
+const DetailPhoto = ({ uri, onPress }) => {
+  const [failed, setFailed] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => { setFailed(false); setLoaded(false); }, [uri]);
+
+  if (!uri || failed) {
+    return (
+      <View style={[styles.photoBox, { height: 170 }]}>
+        <View style={styles.placeholder}>
+          <Camera size={26} color={COLORS.textLight} />
+          <Text style={styles.photoHint}>{failed ? 'Photo could not be loaded' : 'No photo captured'}</Text>
+        </View>
+      </View>
+    );
+  }
+  return (
+    <TouchableOpacity activeOpacity={0.9} disabled={!loaded} onPress={() => onPress && onPress(uri)}>
+      <Image
+        source={{ uri }}
+        style={styles.detailPhoto}
+        onLoad={() => setLoaded(true)}
+        onError={e => { console.log('Detail photo load failed:', uri, e?.nativeEvent?.error); setFailed(true); }}
+      />
+      {!loaded && <ActivityIndicator color={COLORS.primary} style={StyleSheet.absoluteFillObject} />}
+      {loaded && (
+        <View style={styles.detailPhotoHint}>
+          <Maximize2 size={12} color="#fff" /><Text style={styles.detailPhotoHintText}>Tap to view full</Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+};
 
 const AttendanceScreen = ({ navigation }) => {
   const { user } = useAuth();
@@ -537,7 +588,7 @@ const AttendanceScreen = ({ navigation }) => {
 
   // ---- Detail / map / adjust ----------------------------------------------------
   const openDetail = (date, info) => { if (!info) return; setSelectedDay({ date, info }); setExpandedTrackIndex(null); };
-  const closeDetail = () => { setSelectedDay(null); setExpandedTrackIndex(null); };
+  const closeDetail = () => { setFullScreenPhoto(null); setSelectedDay(null); setExpandedTrackIndex(null); };
 
   const openMap = (title, value) => {
     const coords = parseLatLng(value);
@@ -997,7 +1048,7 @@ const AttendanceScreen = ({ navigation }) => {
       </Modal>
 
       {/* ===== Day detail modal ===== */}
-      <Modal visible={!!selectedDay} transparent animationType="slide" onRequestClose={closeDetail}>
+      <Modal visible={!!selectedDay} transparent animationType="slide" onRequestClose={() => (fullScreenPhoto ? setFullScreenPhoto(null) : closeDetail())}>
         <View style={styles.overlay}>
           <View style={styles.modal}>
             <View style={styles.modalHeader}>
@@ -1006,16 +1057,12 @@ const AttendanceScreen = ({ navigation }) => {
             </View>
             {selectedDay && (() => {
               const { info } = selectedDay;
-              const photoSession = info.sessions.find(s => s.image);
+              const photoSession = info.sessions.find(s => getPhotoValue(s));
               const tracking = info.sessions.flatMap(s => s.location_tracking || []);
               const dayStatus = getDayStatus(selectedDay.date, info);
               return (
                 <ScrollView showsVerticalScrollIndicator={false}>
-                  {photoSession ? (
-                    <Image source={{ uri: photoSession.image }} style={styles.detailPhoto} />
-                  ) : (
-                    <View style={[styles.photoBox, { height: 170 }]}><View style={styles.placeholder}><Camera size={26} color={COLORS.textLight} /><Text style={styles.photoHint}>No photo captured</Text></View></View>
-                  )}
+                  <DetailPhoto uri={photoSession ? resolveImageUrl(getPhotoValue(photoSession)) : null} onPress={setFullScreenPhoto} />
 
                   <View style={styles.detailSummary}>
                     <StatusPill status={dayStatus} />
@@ -1061,6 +1108,18 @@ const AttendanceScreen = ({ navigation }) => {
               );
             })()}
           </View>
+
+          {/* Full-screen photo viewer (same Modal, kyunki iOS par modals stack nahi hote) */}
+          {!!fullScreenPhoto && (
+            <View style={styles.previewOverlay}>
+              <TouchableOpacity activeOpacity={1} style={{ flex: 1, justifyContent: 'center' }} onPress={() => setFullScreenPhoto(null)}>
+                <Image source={{ uri: fullScreenPhoto }} style={styles.previewImage} resizeMode="contain" />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.previewClose} onPress={() => setFullScreenPhoto(null)}>
+                <X size={22} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </Modal>
 
@@ -1205,6 +1264,11 @@ const styles = themedCreate({
   photoBox: { height: 245, borderRadius: 20, overflow: 'hidden', backgroundColor: '#F3F7FC', borderWidth: 1, borderColor: COLORS.border },
   photo: { width: '100%', height: '100%', resizeMode: 'cover' },
   detailPhoto: { width: '100%', height: 220, borderRadius: 20, resizeMode: 'cover', backgroundColor: '#F3F7FC' },
+  detailPhotoHint: { position: 'absolute', bottom: 10, right: 10, flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(0,0,0,.55)', paddingHorizontal: 9, paddingVertical: 5, borderRadius: 10 },
+  detailPhotoHintText: { color: '#fff', fontSize: 9, fontWeight: '700' },
+  previewOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: '#000', justifyContent: 'center' },
+  previewImage: { width: '100%', height: '100%' },
+  previewClose: { position: 'absolute', top: 48, right: 18, width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,.18)', alignItems: 'center', justifyContent: 'center' },
   placeholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   cameraCircle: { width: 68, height: 68, borderRadius: 22, backgroundColor: COLORS.primarySoft, alignItems: 'center', justifyContent: 'center' },
   cheese: { fontSize: 17, fontWeight: '900', color: COLORS.text, marginTop: 13 },
