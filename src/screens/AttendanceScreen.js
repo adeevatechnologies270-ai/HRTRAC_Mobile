@@ -56,6 +56,9 @@ const COLORS = {
   grey: '#F1F5F9', border: '#E6ECF4',
 };
 
+// Punch In is blocked outside this radius when the job has a fixed office location.
+const ALLOWED_RADIUS_METERS = 50;
+
 const STATUS_META = {
   present: { label: 'Present', color: COLORS.green, bg: COLORS.greenSoft },
   working: { label: 'Working', color: COLORS.primary, bg: COLORS.primarySoft },
@@ -78,6 +81,15 @@ const parseLatLng = value => {
   const [latitude, longitude] = String(value).split(',').map(Number);
   if (Number.isNaN(latitude) || Number.isNaN(longitude)) return null;
   return { latitude, longitude };
+};
+
+const getDistanceInMeters = (lat1, lon1, lat2, lon2) => {
+  const R = 6371000;
+  const toRad = deg => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
 
 const pad = n => String(n).padStart(2, '0');
@@ -182,6 +194,7 @@ const AttendanceScreen = ({ navigation }) => {
   const [attendance, setAttendance] = useState([]);
   const [leaves, setLeaves] = useState([]);
   const [orgDetails, setOrgDetails] = useState(null);
+  const [jobDetail, setJobDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -193,6 +206,7 @@ const AttendanceScreen = ({ navigation }) => {
   const [locationLoading, setLocationLoading] = useState(false);
   const [cameraLoading, setCameraLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [checkingRange, setCheckingRange] = useState(false);
   const [nowTick, setNowTick] = useState(Date.now());
   const geoStampRef = useRef(null);
 
@@ -246,11 +260,23 @@ const AttendanceScreen = ({ navigation }) => {
     } catch (error) { console.log('Organization details error:', error); }
   }, [user?.id]);
 
-  useEffect(() => { loadAttendance(); loadLeaves(); loadOrg(); }, [loadAttendance, loadLeaves, loadOrg]);
+  // Needed for the office-radius check on Punch In.
+  const loadJobDetail = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const { data } = await client.get(`${endpoints.jobDetails}${user.id}/`);
+      setJobDetail(Array.isArray(data) ? data[0] : data);
+    } catch (error) {
+      console.log('Job detail API error:', error);
+      setJobDetail(null);
+    }
+  }, [user?.id]);
+
+  useEffect(() => { loadAttendance(); loadLeaves(); loadOrg(); loadJobDetail(); }, [loadAttendance, loadLeaves, loadOrg, loadJobDetail]);
 
   const refresh = async () => {
     setRefreshing(true);
-    await Promise.all([loadAttendance(true), loadLeaves(), loadOrg()]);
+    await Promise.all([loadAttendance(true), loadLeaves(), loadOrg(), loadJobDetail()]);
     setRefreshing(false);
   };
 
@@ -372,7 +398,7 @@ const AttendanceScreen = ({ navigation }) => {
     return out;
   }, [logFilter, logRange]);
 
-  // ---- Punch flow (unchanged behaviour) --------------------------------------
+  // ---- Punch flow ------------------------------------------------------------
   const getLocation = async () => {
     setLocationLoading(true);
     try {
@@ -386,6 +412,35 @@ const AttendanceScreen = ({ navigation }) => {
       Alert.alert('Location Error', error?.message || 'Unable to detect your location.');
       return null;
     } finally { setLocationLoading(false); }
+  };
+
+  // When the job is set to a fixed office location (tracking === false),
+  // Punch In is blocked outside a 50m radius. Fails open if the check itself errors.
+  const checkOfficeRange = async () => {
+    if (!jobDetail || jobDetail.tracking !== false) return true;
+    const office = parseLatLng(jobDetail.office_location);
+    if (!office) return true;
+
+    setCheckingRange(true);
+    try {
+      const perm = await Location.requestForegroundPermissionsAsync();
+      if (perm.status !== 'granted') {
+        Alert.alert('Location Error', 'Location permission is required to mark attendance.');
+        return false;
+      }
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const dist = getDistanceInMeters(pos.coords.latitude, pos.coords.longitude, office.latitude, office.longitude);
+      if (dist > ALLOWED_RADIUS_METERS) {
+        Alert.alert('Out of Range', `You are ${Math.round(dist)}m away. Please move within ${ALLOWED_RADIUS_METERS}m of the office.`);
+        return false;
+      }
+      return true;
+    } catch (e) {
+      console.log('Office range check error:', e);
+      return true;
+    } finally {
+      setCheckingRange(false);
+    }
   };
 
   const capturePhoto = async () => {
@@ -419,7 +474,12 @@ const AttendanceScreen = ({ navigation }) => {
     finally { setCameraLoading(false); }
   };
 
-  const openPunch = type => {
+  const openPunch = async type => {
+    if (submitting || cameraLoading || checkingRange) return;
+    if (type === 'in') {
+      const inRange = await checkOfficeRange();
+      if (!inRange) return;
+    }
     setPunchType(type); setPhoto(null); setLocation(null); setModalVisible(true);
     if (type === 'in') setTimeout(() => capturePhoto(), 300);
     else setTimeout(() => getLocation(), 300);
@@ -577,6 +637,7 @@ const AttendanceScreen = ({ navigation }) => {
 
   const todayStatusLabel = hasActivePunch ? 'Working' : todayRecords.length > 0 ? 'Completed' : 'Not Checked In';
   const todayStatusGood = hasActivePunch || todayRecords.length > 0;
+  const punchInDisabled = hasActivePunch || checkingRange || submitting;
 
   return (
     <ScreenShell title="Attendance" subtitle="Your attendance records" navigation={navigation}>
@@ -609,8 +670,11 @@ const AttendanceScreen = ({ navigation }) => {
           )}
 
           <View style={styles.buttonRow}>
-            <TouchableOpacity disabled={hasActivePunch} style={[styles.button, styles.inButton, hasActivePunch && styles.disabled]} onPress={() => openPunch('in')}><LogIn size={18} color={hasActivePunch ? COLORS.textLight : COLORS.primary} /><Text style={[styles.buttonText, { color: hasActivePunch ? COLORS.textLight : COLORS.primary }]}>Punch In</Text></TouchableOpacity>
-            <TouchableOpacity disabled={!hasActivePunch} style={[styles.button, styles.outButton, !hasActivePunch && styles.disabled]} onPress={() => openPunch('out')}><LogOut size={18} color={!hasActivePunch ? COLORS.textLight : COLORS.white} /><Text style={[styles.buttonText, { color: !hasActivePunch ? COLORS.textLight : COLORS.white }]}>Punch Out</Text></TouchableOpacity>
+            <TouchableOpacity disabled={punchInDisabled} style={[styles.button, styles.inButton, punchInDisabled && styles.disabled]} onPress={() => openPunch('in')}>
+              {checkingRange ? <ActivityIndicator size="small" color={COLORS.primary} /> : <LogIn size={18} color={hasActivePunch ? COLORS.textLight : COLORS.primary} />}
+              <Text style={[styles.buttonText, { color: hasActivePunch ? COLORS.textLight : COLORS.primary }]}>{checkingRange ? 'Checking...' : 'Punch In'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity disabled={!hasActivePunch || submitting} style={[styles.button, styles.outButton, !hasActivePunch && styles.disabled]} onPress={() => openPunch('out')}><LogOut size={18} color={!hasActivePunch ? COLORS.textLight : COLORS.white} /><Text style={[styles.buttonText, { color: !hasActivePunch ? COLORS.textLight : COLORS.white }]}>Punch Out</Text></TouchableOpacity>
           </View>
         </View>
 

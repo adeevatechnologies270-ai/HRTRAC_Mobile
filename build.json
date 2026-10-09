@@ -1,0 +1,49 @@
+{
+  "id": "114e576c-7b66-4c0b-b583-a312a68da540",
+  "status": "ERRORED",
+  "platform": "IOS",
+  "error": {
+    "errorCode": "UNKNOWN_ERROR",
+    "message": "Unknown error. See logs of the Bundle JavaScript build phase for more information."
+  },
+  "artifacts": {},
+  "fingerprint": {
+    "id": "01a11b7f-61f0-7f4f-b8e2-da0a0f7937fa",
+    "hash": "f5f29d7b5392fbb289a2611aa4690444a9c38471"
+  },
+  "initiatingActor": {
+    "id": "5ec3a1e7-b750-45a1-b8f9-208a80e03a04",
+    "displayName": "aman273303"
+  },
+  "logFiles": [
+    "https://storage.googleapis.com/eas-workflows-production/logs/4ca7043a-4656-417c-a95a-8b76ed36ab77/114e576c-7b66-4c0b-b583-a312a68da540/2026-10-08T12%3A40%3A55Z-19731efc-4264-4564-befc-27c8063606c8.txt?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=www-production%40exponentjs.iam.gserviceaccount.com%2F20261008%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20261008T124402Z&X-Goog-Expires=900&X-Goog-SignedHeaders=host&X-Goog-Signature=0618a7b868a35793989b6864a053381f50a5a91c6c1db3b2e2f7c3532dbd2f467e234bc877f22f4a77f4c06fd3f3b16bc0eecd80245617523b30c6892ef49471a2cdfa207169b0dbaa196527ac8b439ea6e60fa08af60067f655c75ca35def53d6256c972c5648c7bc493d4d0fbbf3ce3b4c5311313711a0302ab83a2fe4aeda9e6b95c6a9d4637c479ae72c0379341d6f1b21be6260caf8ec50f544f4e36b454b1932bf1f8af512490fa706c215b3019db67ea714251c10d6659270dcb706d2d1b983e71b9ab63374e486a971c12c1d49181f9a4cb69668657f3347fa90aef453b45fb5c7ddbc52694e2b409a1addbfc417dadc10a6dccfa3d191aecd0d41d5"
+  ],
+  "app": {
+    "id": "4ca7043a-4656-417c-a95a-8b76ed36ab77",
+    "name": "hrtrac-mobile",
+    "slug": "hrtrac-mobile",
+    "ownerAccount": {
+      "id": "fdfa4ed5-8f32-450c-8cb7-b3c7ea3d39ab",
+      "name": "aman273303"
+    }
+  },
+  "distribution": "INTERNAL",
+  "buildProfile": "preview",
+  "appIdentifier": "com.hrtrac.mobile",
+  "sdkVersion": "57.0.0",
+  "appVersion": "1.0.0",
+  "appBuildVersion": "6",
+  "gitCommitHash": "aa9338f24773eb89decea39ec18d39c91bd23e2e",
+  "gitCommitMessage": "Fix Android image loading for holidays and profile",
+  "priority": "NORMAL",
+  "createdAt": "2026-10-08T12:40:51.158Z",
+  "updatedAt": "2026-10-08T12:42:28.705Z",
+  "completedAt": "2026-10-08T12:42:28.435Z",
+  "expirationDate": "2026-10-22T12:40:51.232Z",
+  "isForIosSimulator": false,
+  "metrics": {
+    "buildWaitTime": 3364,
+    "buildQueueTime": 26013,
+    "buildDuration": 67900
+  }
+}

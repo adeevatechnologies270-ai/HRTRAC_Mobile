@@ -24,6 +24,7 @@ import SideDrawer from '../components/SideDrawer';
 import NotificationSheet, { useNotifications } from '../components/NotificationSheet';
 import HolidayBanners from '../components/HolidayBanners';
 import UpcomingEvents from '../components/UpcomingEvents';
+import AvatarContent from '../components/AvatarContent';
 import {
   ArrowUpRight,
   BarChart3,
@@ -64,7 +65,7 @@ const COLORS = {
 const tb = c => tc(c, 'bg');
 
 // Same rules as the web dashboard, so mobile and web behave identically.
-const ALLOWED_RADIUS_METERS = 20;
+const ALLOWED_RADIUS_METERS = 50;
 const LATE_AFTER_HOUR = 10;
 const LATE_AFTER_MINUTE = 0;
 
@@ -404,7 +405,7 @@ const DashboardScreen = ({ navigation }) => {
   };
 
   // When the job is set to a fixed office location (tracking === false),
-  // Punch In is blocked outside a 20m radius. Fails open if the check itself errors.
+  // Punch In is blocked outside a 50m radius. Fails open if the check itself errors.
   const checkOfficeRange = async () => {
     if (!jobDetail || jobDetail.tracking !== false) return true;
     const officeLoc = parseLatLng(jobDetail.office_location);
@@ -600,11 +601,12 @@ const DashboardScreen = ({ navigation }) => {
           <View style={styles.heroRow}>
             <TouchableOpacity style={styles.profileWrap} activeOpacity={0.8} onPress={() => setDrawerVisible(true)}>
               <View style={styles.avatar}>
-                {user?.profile_img ? (
-                  <Image source={{ uri: user.profile_img }} style={styles.avatarImage} />
-                ) : (
-                  <Text style={styles.avatarText}>{String(displayName).charAt(0).toUpperCase()}</Text>
-                )}
+                <AvatarContent
+                  uri={user?.profile_img}
+                  letter={String(displayName).charAt(0).toUpperCase()}
+                  imageStyle={styles.avatarImage}
+                  textStyle={styles.avatarText}
+                />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.greeting}>Good day</Text>
