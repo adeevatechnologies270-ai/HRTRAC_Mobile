@@ -48,7 +48,11 @@ import {
 } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
 import client, { endpoints } from '../api/client';
-import { startAttendanceLocationTracking, stopAttendanceLocationTracking } from '../services/locationTracking';
+import {
+  startAttendanceLocationTracking,
+  stopAttendanceLocationTracking,
+  syncLocationIfDue,
+} from '../services/locationTracking';
 
 const COLORS = {
   primary: '#0B4EA2', primaryDark: '#073B7A', primarySoft: '#EAF3FF', background: '#F4F7FB', white: '#FFFFFF',
@@ -345,6 +349,24 @@ const AttendanceScreen = ({ navigation }) => {
   }, [hasActivePunch, activeRecord?.id]);
 
   const liveElapsedMs = hasActivePunch ? nowTick - new Date(getCheckInValue(activeRecord)).getTime() : 0;
+
+  // Active punch ho to tracking chalu rakho (app kill/restart ke baad bhi dobara register ho jayega).
+  // Last saved location ke time + 2 ghante hote hi current location server pe save hoti hai.
+  useEffect(() => {
+    if (loading) return undefined;
+
+    if (!hasActivePunch) {
+      stopAttendanceLocationTracking().catch(() => {});
+      return undefined;
+    }
+
+    startAttendanceLocationTracking().catch(e => console.log('Tracking start error:', e));
+
+    // Foreground safety net: app khula ho to har 5 min me due check
+    syncLocationIfDue().catch(() => {});
+    const id = setInterval(() => syncLocationIfDue().catch(() => {}), 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [hasActivePunch, loading]);
 
   // ---- Per-day grouping ----------------------------------------------------
   const dayMap = useMemo(() => {

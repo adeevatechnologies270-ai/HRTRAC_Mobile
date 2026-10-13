@@ -1,53 +1,89 @@
 import * as Location from 'expo-location';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as TaskManager from 'expo-task-manager';
+import * as BackgroundFetch from 'expo-background-fetch';
 import client, { endpoints } from '../api/client';
 
-// Records a location point on the active punch roughly every 2 hours while
-// the app is running. Uses the existing backend route:
-//   PUT /punch-in-update/<punch_id>/  { location: "lat,lng", time: ISO }
-const INTERVAL_MS = 2 * 60 * 60 * 1000;
-let timer = null;
+// Last saved entry ke time + 2 ghante hote hi current location save hoti hai.
+// "Due hai ya nahi" ka faisla server karta hai (GET /punch-in/tracking-status/).
+export const TRACK_TASK = 'ATTENDANCE_TRACK_TASK';
 
-const getActivePunchId = async () => {
-  const userId = await AsyncStorage.getItem('userId');
-  if (!userId) return null;
-  const { data } = await client.get(endpoints.punchesByUser(userId));
-  const list = Array.isArray(data) ? data : data?.results || [];
-  const active = list
-    .filter(p => !p.punch_out_time)
-    .sort((a, b) => new Date(b.punch_time) - new Date(a.punch_time))[0];
-  return active?.id || null;
-};
+let syncing = false; // ek saath 2 sync na chalein
 
-const sendPing = async () => {
+export const syncLocationIfDue = async () => {
+  if (syncing) return;
+  syncing = true;
   try {
     const perm = await Location.getForegroundPermissionsAsync();
     if (perm.status !== 'granted') return;
-    const punchId = await getActivePunchId();
-    if (!punchId) {
+
+    const { data: status } = await client.get(endpoints.punchTrackingStatus);
+
+    if (!status?.active) {
       await stopAttendanceLocationTracking();
       return;
     }
-    const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-    await client.put(`/punch-in-update/${punchId}/`, {
+    if (!status.due_now) return;
+
+    const pos = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.Balanced,
+    });
+
+    await client.put(endpoints.punchLocation, {
       location: `${pos.coords.latitude},${pos.coords.longitude}`,
-      time: new Date().toISOString(),
     });
   } catch (error) {
-    console.log('Location ping failed:', error?.message || error);
+    console.log('Location sync failed:', error?.message || error);
+    throw error;
+  } finally {
+    syncing = false;
   }
 };
 
+// Top-level pe define hona zaroori hai (App.js me import karne se ye chal jata hai)
+TaskManager.defineTask(TRACK_TASK, async () => {
+  try {
+    await syncLocationIfDue();
+    return BackgroundFetch.BackgroundFetchResult.NewData;
+  } catch (e) {
+    return BackgroundFetch.BackgroundFetchResult.Failed;
+  }
+});
+
 export const startAttendanceLocationTracking = async () => {
-  await stopAttendanceLocationTracking();
-  timer = setInterval(sendPing, INTERVAL_MS);
-  return true;
+  try {
+    const fg = await Location.requestForegroundPermissionsAsync();
+    if (fg.status !== 'granted') return false;
+
+    const bg = await Location.requestBackgroundPermissionsAsync();
+    if (bg.status !== 'granted') return false;
+
+    const registered = await TaskManager.isTaskRegisteredAsync(TRACK_TASK);
+    if (!registered) {
+      await BackgroundFetch.registerTaskAsync(TRACK_TASK, {
+        minimumInterval: 15 * 60, // seconds, Android minimum 15 min
+        stopOnTerminate: false,
+        startOnBoot: true,
+      });
+    }
+    return true;
+  } catch (error) {
+    console.log('Start tracking failed:', error?.message || error);
+    return false;
+  }
 };
 
 export const stopAttendanceLocationTracking = async () => {
-  if (timer) clearInterval(timer);
-  timer = null;
+  try {
+    const registered = await TaskManager.isTaskRegisteredAsync(TRACK_TASK);
+    if (registered) await BackgroundFetch.unregisterTaskAsync(TRACK_TASK);
+  } catch (error) {
+    console.log('Stop tracking failed:', error?.message || error);
+  }
   return true;
 };
 
-export default { startAttendanceLocationTracking, stopAttendanceLocationTracking };
+export default {
+  startAttendanceLocationTracking,
+  stopAttendanceLocationTracking,
+  syncLocationIfDue,
+};

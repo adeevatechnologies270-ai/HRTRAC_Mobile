@@ -87,4 +87,6 @@ export const endpoints = {
   allJobDetails: '/job-details/',
   orgByUser: (id) => `/get-organization-details/user/${id}/`,
   regularizationByUser: (id) => `/regularization-requests/user/${id}/`,
+  punchLocation: '/punch-in/location/',
+  punchTrackingStatus: '/punch-in/tracking-status/',
 };
