@@ -15,7 +15,7 @@
 // HRTRAC · App entry
 // ThemeProvider (Light/Dark/System + accent) > AuthProvider
 // ============================================================
-
+import './src/services/locationTracking';
 import React from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';

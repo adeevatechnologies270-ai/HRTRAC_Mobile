@@ -1,3 +1,4 @@
+
 {
   "expo": {
     "name": "HRTRAC",
@@ -23,8 +24,8 @@
       "supportsTablet": true,
       "infoPlist": {
         "NSCameraUsageDescription": "HRTRAC uses the camera for attendance punch-in photos.",
-        "NSLocationWhenInUseUsageDescription": "HRTRAC uses your location for attendance punch-in and punch-out.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "HRTRAC records your location periodically every 2 hours while you are punched in, even when the app is in the background.",
+        "NSLocationWhenInUseUsageDescription": "HRTRAC uses your location during work hours.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "HRTRAC tracks your location during an active duty session, including when the screen is locked.",
         "UIBackgroundModes": [
           "location",
           "fetch"
@@ -36,9 +37,11 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Allow HRTRAC to use your location for attendance verification and periodic tracking while you are punched in.",
+          "locationWhenInUsePermission": "HRTRAC uses your location during work hours.",
+          "locationAlwaysAndWhenInUsePermission": "HRTRAC tracks your location during an active duty session, including when the screen is locked.",
           "isAndroidBackgroundLocationEnabled": true,
-          "isAndroidForegroundServiceEnabled": true
+          "isAndroidForegroundServiceEnabled": true,
+          "isIosBackgroundLocationEnabled": true
         }
       ],
       "@react-native-community/datetimepicker",
