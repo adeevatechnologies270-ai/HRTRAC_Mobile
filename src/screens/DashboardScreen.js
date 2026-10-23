@@ -991,6 +991,7 @@
 // });
 
 // export default DashboardScreen;
+
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { themedCreate, tc } from '../theme/themedStyles';
 import {
@@ -1045,7 +1046,6 @@ import {
 import { useAuth } from '../context/AuthContext';
 import client, { endpoints } from '../api/client';
 import * as LocationTracking from '../services/locationTracking';
-import { startTrackingSession, stopTrackingSession } from '../services/dutyTrackingApi';
 
 const COLORS = {
   primary: '#0B4EA2', primaryDark: '#073B7A', primarySoft: '#EAF3FF', primarySoft2: '#F3F8FF',
@@ -1366,18 +1366,19 @@ const DashboardScreen = ({ navigation }) => {
 
   const liveElapsedMs = hasActivePunch ? nowTick - new Date(getCheckInValue(activeRecord)).getTime() : 0;
 
-  // Resume duty tracking when dashboard opens with an active punch. Stop it after punch-out.
+  // Keep GPS tracking aligned with the server-backed active punch after app resume/restart.
+  // Session start/stop is handled only by locationTracking.js (do not call tracking API separately).
   useEffect(() => {
     if (loading) return undefined;
-
-    if (!hasActivePunch) {
-      Promise.resolve(LocationTracking.stopAttendanceLocationTracking?.()).catch(() => {});
-      stopTrackingSession().catch(e => console.log('Tracking session stop failed:', e));
-      return undefined;
+    if (hasActivePunch) {
+      LocationTracking.startAttendanceLocationTracking().catch(error => {
+        console.log('Tracking resume failed:', error?.message || error);
+      });
+    } else {
+      LocationTracking.stopAttendanceLocationTracking().catch(error => {
+        console.log('Tracking stop failed:', error?.message || error);
+      });
     }
-
-    Promise.resolve(LocationTracking.startAttendanceLocationTracking?.()).catch(e => console.log('Tracking start failed:', e));
-    startTrackingSession().catch(e => console.log('Tracking session start failed:', e));
     return undefined;
   }, [hasActivePunch, loading]);
 
@@ -1568,7 +1569,6 @@ const DashboardScreen = ({ navigation }) => {
       cancelText: 'Cancel',
       onConfirm: async () => {
         try { await LocationTracking.stopAttendanceLocationTracking?.(); } catch (e) { /* ignore */ }
-        try { await stopTrackingSession(); } catch (e) { console.log('Tracking session stop failed:', e); }
         await (signOut || logout)?.();
       },
     }), 250);

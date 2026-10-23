@@ -1,62 +1,28 @@
-
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const BASE_URL = (process.env.EXPO_PUBLIC_API_BASE_URL || '').replace(/\/+$/, '');
+// EXPO_PUBLIC_API_BASE_URL should be the backend origin, e.g. http://192.168.1.9:8004
 const TRACKING_URL = `${BASE_URL}/api/tracking`;
 
-async function request(path, method = 'POST', body = undefined) {
-  if (!BASE_URL) {
-    throw new Error('EXPO_PUBLIC_API_BASE_URL is not configured.');
-  }
-
+async function request(path, method = 'POST', body) {
+  if (!BASE_URL) throw new Error('EXPO_PUBLIC_API_BASE_URL is not configured.');
   const token = await AsyncStorage.getItem('access_token');
-
-  if (!token) {
-    throw new Error('Authentication token not found.');
-  }
+  if (!token) throw new Error('Authentication token not found in access_token.');
 
   const response = await fetch(`${TRACKING_URL}/${path}`, {
     method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
-
-  const text = await response.text();
-  let data = {};
-
-  try {
-    data = text ? JSON.parse(text) : {};
-  } catch {
-    data = { error: text || 'Invalid server response.' };
-  }
-
-  if (!response.ok) {
-    throw new Error(data.error || data.detail || 'Tracking request failed.');
-  }
-
+  const raw = await response.text();
+  let data;
+  try { data = raw ? JSON.parse(raw) : {}; } catch { data = { error: raw || 'Invalid server response.' }; }
+  if (!response.ok) throw new Error(data.error || data.detail || `Tracking request failed (${response.status}).`);
   return data;
 }
 
 export const startTrackingSession = () => request('start/');
-
 export const stopTrackingSession = () => request('stop/');
-
-export const uploadTrackingLocation = ({
-  latitude,
-  longitude,
-  accuracy,
-  speed,
-  recorded_at,
-}) =>
-  request('location/', 'POST', {
-    latitude,
-    longitude,
-    accuracy,
-    speed,
-    recorded_at,
-  });
-
+export const uploadTrackingLocation = ({ latitude, longitude, accuracy, speed, recorded_at }) =>
+  request('location/', 'POST', { latitude, longitude, accuracy, speed, recorded_at });
 export const getLiveLocations = () => request('live/', 'GET');

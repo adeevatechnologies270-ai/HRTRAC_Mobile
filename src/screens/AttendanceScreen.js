@@ -1399,7 +1399,6 @@ import {
   stopAttendanceLocationTracking,
   syncLocationIfDue,
 } from '../services/locationTracking';
-import { startTrackingSession, stopTrackingSession } from '../services/dutyTrackingApi';
 
 const COLORS = {
   primary: '#0B4EA2', primaryDark: '#073B7A', primarySoft: '#EAF3FF', background: '#F4F7FB', white: '#FFFFFF',
@@ -1697,21 +1696,19 @@ const AttendanceScreen = ({ navigation }) => {
 
   const liveElapsedMs = hasActivePunch ? nowTick - new Date(getCheckInValue(activeRecord)).getTime() : 0;
 
-  // Duty tracking sirf active punch-in se punch-out tak chalta hai.
-  // Screen/app dobara khulne par active attendance milne se tracking resume hoti hai.
+  // Active punch ho to tracking chalu rakho (app kill/restart ke baad bhi dobara register ho jayega).
+  // Background GPS updates upload live location points while the duty session is active.
   useEffect(() => {
     if (loading) return undefined;
 
     if (!hasActivePunch) {
       stopAttendanceLocationTracking().catch(() => {});
-      stopTrackingSession().catch(e => console.log('Tracking session stop failed:', e));
       return undefined;
     }
 
     startAttendanceLocationTracking().catch(e => console.log('Tracking start error:', e));
-    startTrackingSession().catch(e => console.log('Tracking session start failed:', e));
 
-    // Existing foreground safety net: due location sync check every 5 minutes.
+    // Foreground safety net: app khula ho to har 5 min me due check
     syncLocationIfDue().catch(() => {});
     const id = setInterval(() => syncLocationIfDue().catch(() => {}), 5 * 60 * 1000);
     return () => clearInterval(id);
